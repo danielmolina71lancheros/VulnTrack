@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dashboard from './Dashboard';
 import { Shield, Eye, EyeOff } from 'lucide-react';
+import { apiPostPublic } from './utils/apiClient';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -48,20 +49,14 @@ function App() {
     e.preventDefault();
     setError('');
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          correo,
-          password,
-          ...(requiereMfa && { mfa_token: mfaToken })
-        })
+      // El login es publico: usamos apiPostPublic para que un 401
+      // (credenciales invalidas) NO dispare el redirect global de sesion,
+      // sino que se muestre el data.error en el formulario.
+      const data = await apiPostPublic('/api/auth/login', {
+        correo,
+        password,
+        ...(requiereMfa && { mfa_token: mfaToken })
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setError(data.mensaje || 'Error al iniciar sesión');
-        return;
-      }
       if (data.mfa_requerido) {
         setRequiereMfa(true);
       } else {
@@ -69,7 +64,9 @@ function App() {
         setExito(true);
       }
     } catch (err) {
-      setError('No se pudo conectar con el servidor.');
+      // err.message trae el data.error del backend (incluye el 429
+      // 'Demasiados intentos de inicio de sesion...').
+      setError(err.message || 'Error al iniciar sesión');
     }
   };
 
@@ -81,6 +78,13 @@ function App() {
     setMfaToken('');
     setRequiereMfa(false);
   };
+
+  // Escucha el evento global 'auth:logout' que dispara apiClient ante un 401
+  // en cualquier llamada: resetea el estado a la pantalla de login.
+  useEffect(() => {
+    window.addEventListener('auth:logout', cerrarSesion);
+    return () => window.removeEventListener('auth:logout', cerrarSesion);
+  }, []);
 
   if (exito || localStorage.getItem('vulntrack_token')) {
     return <Dashboard onLogout={cerrarSesion} />;

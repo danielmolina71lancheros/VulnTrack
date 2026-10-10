@@ -9,6 +9,7 @@ import {
   Clock,
   Route
 } from 'lucide-react';
+import { apiGet, apiUpload } from '../utils/apiClient';
 
 export default function EvidenciasView() {
   const [events, setEvents] = useState([]);
@@ -35,33 +36,21 @@ export default function EvidenciasView() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const token = localStorage.getItem('vulntrack_token');
-        const headers = { 'Authorization': `Bearer ${token}` };
-
         // Fetch users to map IDs to names
-        const usersRes = await fetch('/api/usuarios', { headers });
-        let usersMap = {};
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          usersData.forEach(u => {
-            usersMap[u.id_usuario] = u.nombre_completo;
-          });
-          setUsers(usersMap);
-        }
+        const usersData = await apiGet('/api/usuarios');
+        const usersMap = {};
+        usersData.forEach(u => {
+          usersMap[u.id_usuario] = u.nombre_completo;
+        });
+        setUsers(usersMap);
 
         // Fetch audit logs
-        const auditRes = await fetch('/api/auditoria', { headers });
-        if (auditRes.ok) {
-          const auditData = await auditRes.json();
-          setEvents(auditData);
-        }
-        
+        const auditData = await apiGet('/api/auditoria');
+        setEvents(auditData);
+
         // Fetch Planes de Remediación
-        const planesRes = await fetch('/api/remediacion', { headers });
-        if (planesRes.ok) {
-          const planesData = await planesRes.json();
-          setPlanes(planesData);
-        }
+        const planesData = await apiGet('/api/remediacion');
+        setPlanes(planesData);
       } catch (error) {
         console.error("Error fetching audit data:", error);
       } finally {
@@ -79,28 +68,18 @@ export default function EvidenciasView() {
     }
     setUploading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
       const formData = new FormData();
       formData.append('comentario', comentario);
       formData.append('archivo', archivo);
 
-      const res = await fetch(`/api/remediacion/${selectedPlan}/evidencias`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      if (res.ok) {
-        alert("Evidencia subida correctamente");
-        setComentario('');
-        setArchivo(null);
-        setSelectedPlan('');
-      } else {
-        alert("Error al subir evidencia");
-      }
+      await apiUpload(`/api/remediacion/${selectedPlan}/evidencias`, formData);
+      alert("Evidencia subida correctamente");
+      setComentario('');
+      setArchivo(null);
+      setSelectedPlan('');
     } catch (err) {
       console.error(err);
-      alert("Error de red");
+      alert(err.message || "Error al subir evidencia");
     } finally {
       setUploading(false);
     }

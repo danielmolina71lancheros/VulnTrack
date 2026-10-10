@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Plus, Edit2, Trash2, X, CheckCircle2 } from 'lucide-react';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient';
 
 export default function RolesPermisosView() {
   const [roles, setRoles] = useState([]);
@@ -30,11 +31,8 @@ export default function RolesPermisosView() {
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/roles', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) setRoles(await res.json());
+      const data = await apiGet('/api/roles');
+      setRoles(data);
     } catch (error) {
       console.error("Error fetching roles:", error);
     } finally {
@@ -66,42 +64,25 @@ export default function RolesPermisosView() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem('vulntrack_token');
-    const method = formData.id_rol ? 'PUT' : 'POST';
-    const url = formData.id_rol 
-      ? `/api/roles/${formData.id_rol}`
-      : `/api/roles`;
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        setIsModalOpen(false);
-        fetchRoles();
+      if (formData.id_rol) {
+        await apiPut(`/api/roles/${formData.id_rol}`, formData);
       } else {
-        const error = await res.json();
-        alert(error.error || "Error al guardar el rol");
+        await apiPost('/api/roles', formData);
       }
+      setIsModalOpen(false);
+      fetchRoles();
     } catch (error) {
       console.error(error);
+      alert(error.message || "Error al guardar el rol");
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("¿Seguro que deseas eliminar este rol? Los usuarios con este rol perderán sus accesos.")) return;
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/roles/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) fetchRoles();
+      await apiDelete(`/api/roles/${id}`);
+      fetchRoles();
     } catch (error) {
       console.error(error);
     }

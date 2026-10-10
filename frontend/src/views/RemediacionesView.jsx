@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Plus, Search, Filter, X, ShieldCheck, Clock, FileText, Activity, Target } from 'lucide-react';
 import { getUserRole } from '../utils/auth';
+import { apiGet, apiPost, apiPatch } from '../utils/apiClient';
 
 export default function RemediacionesView() {
   const [planes, setPlanes] = useState([]);
@@ -32,18 +33,15 @@ export default function RemediacionesView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      const [planesRes, hallazgosRes, usuariosRes] = await Promise.all([
-        fetch('/api/remediacion', { headers }),
-        fetch('/api/hallazgos', { headers }),
-        fetch('/api/usuarios', { headers })
+      const [planesData, hallazgosData, usuariosData] = await Promise.all([
+        apiGet('/api/remediacion'),
+        apiGet('/api/hallazgos'),
+        apiGet('/api/usuarios')
       ]);
 
-      if (planesRes.ok) setPlanes(await planesRes.json());
-      if (hallazgosRes.ok) setHallazgos(await hallazgosRes.json());
-      if (usuariosRes.ok) setUsuarios(await usuariosRes.json());
+      setPlanes(planesData);
+      setHallazgos(hallazgosData);
+      setUsuarios(usuariosData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -59,29 +57,17 @@ export default function RemediacionesView() {
     }
 
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/remediacion', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
+      await apiPost('/api/remediacion', formData);
+      setIsModalOpen(false);
+      fetchData();
+      setFormData({
+        nombre: '', descripcion: '', plan_accion: '', id_remediador: '', 
+        prioridad: 'MEDIA', fecha_inicio: new Date().toISOString().split('T')[0], 
+        fecha_limite: '', vulnerabilidades: []
       });
-      if (res.ok) {
-        setIsModalOpen(false);
-        fetchData();
-        setFormData({
-          nombre: '', descripcion: '', plan_accion: '', id_remediador: '', 
-          prioridad: 'MEDIA', fecha_inicio: new Date().toISOString().split('T')[0], 
-          fecha_limite: '', vulnerabilidades: []
-        });
-      } else {
-        const err = await res.json();
-        alert(err.error || "Error al crear el plan");
-      }
     } catch (error) {
       console.error('Error creating plan:', error);
+      alert(error.message || "Error al crear el plan");
     }
   };
 
@@ -207,9 +193,9 @@ export default function RemediacionesView() {
                            setExpandedPlanId(null);
                         } else {
                            setExpandedPlanId(plan.id_plan);
-                           const t = localStorage.getItem('vulntrack_token');
-                           const res = await fetch('/api/remediacion/' + plan.id_plan, { headers: { Authorization: 'Bearer ' + t } });
-                           if(res.ok) setExpandedPlanData(await res.json());
+                           try {
+                             setExpandedPlanData(await apiGet('/api/remediacion/' + plan.id_plan));
+                           } catch (err) { console.error(err); }
                         }
                       }}
                       className="hover:bg-brand-accent/20 transition-colors group cursor-pointer"
@@ -288,21 +274,14 @@ export default function RemediacionesView() {
                                      value={plan.estado_plan}
                                      onChange={async (e) => {
                                         const nuevoEstado = e.target.value;
-                                        const token = localStorage.getItem('vulntrack_token');
                                         try {
-                                            const res = await fetch(`/api/remediacion/${plan.id_plan}/estado`, {
-                                                method: 'PATCH',
-                                                headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-                                                body: JSON.stringify({ estado: nuevoEstado })
-                                            });
-                                            if (res.ok) {
-                                                fetchData();
-                                                alert('Estado actualizado. Las vulnerabilidades asociadas se han actualizado.');
-                                            } else {
-                                                const err = await res.json();
-                                                alert(err.error || 'Error al cambiar estado.');
-                                            }
-                                        } catch(e) { console.error(e); }
+                                            await apiPatch(`/api/remediacion/${plan.id_plan}/estado`, { estado: nuevoEstado });
+                                            fetchData();
+                                            alert('Estado actualizado. Las vulnerabilidades asociadas se han actualizado.');
+                                        } catch(err) {
+                                            console.error(err);
+                                            alert(err.message || 'Error al cambiar estado.');
+                                        }
                                      }}
                                    >
                                      <option value="PENDIENTE">Pendiente</option>

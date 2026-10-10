@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { ShieldAlert, Shield, ShieldCheck, Activity } from 'lucide-react';
+import { apiGet } from '../utils/apiClient';
 
 const COLORS_SEVERIDAD = {
   CRITICA: '#EF4444',
@@ -40,20 +41,11 @@ export default function ResumenDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const headers = {
-        'Authorization': `Bearer ${token}`
-      };
-
-      const [hallazgosRes, remediacionRes, riesgosRes] = await Promise.all([
-        fetch('/api/hallazgos', { headers }),
-        fetch('/api/remediacion', { headers }),
-        fetch('/api/riesgos', { headers })
+      const [hallazgos, remediaciones, riesgosArr] = await Promise.all([
+        apiGet('/api/hallazgos'),
+        apiGet('/api/remediacion'),
+        apiGet('/api/riesgos')
       ]);
-
-      const hallazgos = await hallazgosRes.json();
-      const remediaciones = await remediacionRes.json();
-      const riesgosArr = await riesgosRes.json();
 
       let criticas = 0;
       let altas = 0;

@@ -9,6 +9,7 @@ import {
   BarChart,
   ChevronRight
 } from 'lucide-react';
+import { apiGet } from '../utils/apiClient';
 
 export default function ReportesView() {
   const [activeTab, setActiveTab] = useState('ejecutivos');
@@ -21,14 +22,8 @@ export default function ReportesView() {
   React.useEffect(() => {
     const fetchActivos = async () => {
       try {
-        const token = localStorage.getItem('vulntrack_token');
-        const res = await fetch('/api/activos', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setActivos(data);
-        }
+        const data = await apiGet('/api/activos');
+        setActivos(data);
       } catch (error) {
         console.error("Error fetching activos:", error);
       }
@@ -84,20 +79,12 @@ export default function ReportesView() {
     setLoading(true);
     setReportData(null);
     try {
-      const token = localStorage.getItem('vulntrack_token');
       const url = selectedActivo ? `${report.endpoint}?id_activo=${selectedActivo}` : report.endpoint;
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setReportData(data);
-      } else {
-        setReportData({ error: 'No se pudo cargar la información del reporte.' });
-      }
+      const data = await apiGet(url);
+      setReportData(data);
     } catch (error) {
       console.error(error);
-      setReportData({ error: 'Error al conectar con el servidor.' });
+      setReportData({ error: error.message || 'No se pudo cargar la información del reporte.' });
     } finally {
       setLoading(false);
     }

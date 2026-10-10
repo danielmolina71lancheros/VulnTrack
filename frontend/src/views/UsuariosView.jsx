@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Edit, Trash2, X, Plus } from 'lucide-react';
 import { getUserRole } from '../utils/auth';
+import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient';
 
 export default function UsuariosView() {
   const [usuarios, setUsuarios] = useState([]);
@@ -27,17 +28,13 @@ export default function UsuariosView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const [resUsers, resRoles] = await Promise.all([
-        fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/roles', { headers: { 'Authorization': `Bearer ${token}` } })
+      const [usersData, rolesData] = await Promise.all([
+        apiGet('/api/usuarios'),
+        apiGet('/api/roles')
       ]);
-      
-      if (resUsers.ok) setUsuarios(await resUsers.json());
-      if (resRoles.ok) {
-        const rolesData = await resRoles.json();
-        setRolesList(rolesData.map(r => r.nombre));
-      }
+
+      setUsuarios(usersData);
+      setRolesList(rolesData.map(r => r.nombre));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -48,20 +45,9 @@ export default function UsuariosView() {
   const handleEditRole = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/usuarios/${editingUser.id_usuario}/rol`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ rol: newRole })
-      });
-      
-      if (res.ok) {
-        setIsEditModalOpen(false);
-        fetchData();
-      }
+      await apiPut(`/api/usuarios/${editingUser.id_usuario}/rol`, { rol: newRole });
+      setIsEditModalOpen(false);
+      fetchData();
     } catch (error) {
       console.error('Error updating role:', error);
     }
@@ -70,43 +56,22 @@ export default function UsuariosView() {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('vulntrack_token');
       // POST /api/usuarios endpoint needed
-      const res = await fetch(`/api/usuarios`, { 
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newUser)
-      });
-      
-      if (res.ok) {
-        setIsCreateModalOpen(false);
-        setNewUser({ nombre_completo: '', correo: '', password: '', rol: 'AUDITOR' });
-        fetchData();
-      } else {
-        const errorData = await res.json();
-        alert(`Error al crear usuario: ${errorData.error || 'Desconocido'}`);
-      }
+      await apiPost('/api/usuarios', newUser);
+      setIsCreateModalOpen(false);
+      setNewUser({ nombre_completo: '', correo: '', password: '', rol: 'AUDITOR' });
+      fetchData();
     } catch (error) {
       console.error('Error creating user:', error);
+      alert(`Error al crear usuario: ${error.message || 'Desconocido'}`);
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Está seguro que desea eliminar este usuario?')) return;
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/usuarios/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (res.ok) {
-        fetchData();
-      }
+      await apiDelete(`/api/usuarios/${id}`);
+      fetchData();
     } catch (error) {
       console.error('Error deleting user:', error);
     }

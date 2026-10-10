@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TriangleAlert, Search, Filter, Plus, X, ShieldAlert, Activity, FileText, CheckCircle, Clock } from 'lucide-react';
 import { getUserRole } from '../utils/auth';
+import { apiGet, apiPost, apiDelete } from '../utils/apiClient';
 
 export default function VulnerabilidadesView() {
   const [hallazgos, setHallazgos] = useState([]);
@@ -33,16 +34,10 @@ export default function VulnerabilidadesView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      const [hallazgosRes, activosRes] = await Promise.all([
-        fetch('/api/hallazgos', { headers }),
-        fetch('/api/activos', { headers })
+      const [hData, aData] = await Promise.all([
+        apiGet('/api/hallazgos'),
+        apiGet('/api/activos')
       ]);
-
-      const hData = await hallazgosRes.json();
-      const aData = await activosRes.json();
 
       if (Array.isArray(hData)) setHallazgos(hData);
       if (Array.isArray(aData)) setActivos(aData);
@@ -57,35 +52,27 @@ export default function VulnerabilidadesView() {
     if (!formData.cve_id) return;
     setNvdLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/hallazgos/nvd/${formData.cve_id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        
-        let mappedSeveridad = 'MEDIA';
-        if (data.severidad) {
-          const s = data.severidad.toUpperCase();
-          if (s === 'CRITICAL') mappedSeveridad = 'CRITICA';
-          else if (s === 'HIGH') mappedSeveridad = 'ALTA';
-          else if (s === 'MEDIUM') mappedSeveridad = 'MEDIA';
-          else if (s === 'LOW') mappedSeveridad = 'BAJA';
-        }
+      const data = await apiGet(`/api/hallazgos/nvd/${formData.cve_id}`);
 
-        setFormData({
-          ...formData,
-          titulo: formData.titulo || `Vulnerabilidad ${data.cve_id}`,
-          descripcion: data.descripcion || '',
-          severidad: mappedSeveridad,
-          cvss: data.cvss || ''
-        });
-      } else {
-        alert('No se pudo obtener información del NVD para este CVE.');
+      let mappedSeveridad = 'MEDIA';
+      if (data.severidad) {
+        const s = data.severidad.toUpperCase();
+        if (s === 'CRITICAL') mappedSeveridad = 'CRITICA';
+        else if (s === 'HIGH') mappedSeveridad = 'ALTA';
+        else if (s === 'MEDIUM') mappedSeveridad = 'MEDIA';
+        else if (s === 'LOW') mappedSeveridad = 'BAJA';
       }
+
+      setFormData({
+        ...formData,
+        titulo: formData.titulo || `Vulnerabilidad ${data.cve_id}`,
+        descripcion: data.descripcion || '',
+        severidad: mappedSeveridad,
+        cvss: data.cvss || ''
+      });
     } catch (error) {
       console.error('Error fetching NVD data:', error);
-      alert('Error de conexión consultando el NVD.');
+      alert('No se pudo obtener información del NVD para este CVE.');
     } finally {
       setNvdLoading(false);
     }
@@ -94,50 +81,32 @@ export default function VulnerabilidadesView() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/hallazgos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          titulo: formData.titulo,
-          descripcion: formData.descripcion,
-          cve_id: formData.cve_id,
-          severidad: formData.severidad,
-          cvss: parseFloat(formData.cvss) || null,
-          id_activo: formData.id_activo,
-          fuente: formData.fuente
-        })
+      await apiPost('/api/hallazgos', {
+        titulo: formData.titulo,
+        descripcion: formData.descripcion,
+        cve_id: formData.cve_id,
+        severidad: formData.severidad,
+        cvss: parseFloat(formData.cvss) || null,
+        id_activo: formData.id_activo,
+        fuente: formData.fuente
       });
-      
-      if (res.ok) {
-        setIsModalOpen(false);
-        setFormData({ cve_id: '', titulo: '', descripcion: '', severidad: 'MEDIA', cvss: '', id_activo: '', fuente: 'Manual' });
-        fetchData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Error al crear vulnerabilidad');
-      }
+
+      setIsModalOpen(false);
+      setFormData({ cve_id: '', titulo: '', descripcion: '', severidad: 'MEDIA', cvss: '', id_activo: '', fuente: 'Manual' });
+      fetchData();
     } catch (error) {
       console.error('Error creating hallazgo:', error);
+      alert(error.message || 'Error al crear vulnerabilidad');
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar esta vulnerabilidad?')) return;
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/hallazgos/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchData();
-        if (selectedHallazgo && selectedHallazgo.id_hallazgo === id) {
-          setIsDetailOpen(false);
-        }
+      await apiDelete(`/api/hallazgos/${id}`);
+      fetchData();
+      if (selectedHallazgo && selectedHallazgo.id_hallazgo === id) {
+        setIsDetailOpen(false);
       }
     } catch (error) {
       console.error('Error deleting hallazgo:', error);
@@ -150,13 +119,8 @@ export default function VulnerabilidadesView() {
     setIsDetailOpen(true);
     setLoadingDetail(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/hallazgos/${hallazgo.id_hallazgo}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setDetalleCompleto(await res.json());
-      }
+      const data = await apiGet(`/api/hallazgos/${hallazgo.id_hallazgo}`);
+      setDetalleCompleto(data);
     } catch (e) {
       console.error(e);
     } finally {

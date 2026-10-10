@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Target, Plus, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { getUserRole } from '../utils/auth';
+import { apiGet, apiPost } from '../utils/apiClient';
 
 export default function RiesgosView() {
   const [riesgos, setRiesgos] = useState([]);
@@ -17,16 +18,13 @@ export default function RiesgosView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      const [riesgosRes, hallazgosRes] = await Promise.all([
-        fetch('/api/riesgos', { headers }),
-        fetch('/api/hallazgos', { headers })
+      const [riesgosData, hallazgosData] = await Promise.all([
+        apiGet('/api/riesgos'),
+        apiGet('/api/hallazgos')
       ]);
 
-      if (riesgosRes.ok) setRiesgos(await riesgosRes.json());
-      if (hallazgosRes.ok) setHallazgos(await hallazgosRes.json());
+      setRiesgos(riesgosData);
+      setHallazgos(hallazgosData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -38,8 +36,7 @@ export default function RiesgosView() {
     const pendientes = hallazgos.filter(h => !h.riesgo_puntaje);
     if (pendientes.length === 0) return alert('No hay vulnerabilidades pendientes por evaluar.');
     setLoading(true);
-    const token = localStorage.getItem('vulntrack_token');
-    
+
     for (const h of pendientes) {
       let imp = 2; // BAJA
       if (h.activo_criticidad === 'CRITICA') imp = 5;
@@ -53,11 +50,7 @@ export default function RiesgosView() {
       else if (cvss >= 4) prob = 3;
       
       try {
-        await fetch('/api/riesgos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ id_hallazgo: h.id_hallazgo, impacto: imp, probabilidad: prob, justificacion: 'Auto-Evaluación basada en criticidad de activo y CVSS.' })
-        });
+        await apiPost('/api/riesgos', { id_hallazgo: h.id_hallazgo, impacto: imp, probabilidad: prob, justificacion: 'Auto-Evaluación basada en criticidad de activo y CVSS.' });
       } catch (e) {
         console.error(e);
       }

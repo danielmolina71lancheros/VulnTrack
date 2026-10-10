@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Monitor, Search, Filter, Plus, X, Server, Database, Smartphone, Globe, FileText, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
 import { getUserRole } from '../utils/auth';
+import { apiGet, apiPost, apiDelete } from '../utils/apiClient';
 
 export default function ActivosView() {
   const [activos, setActivos] = useState([]);
@@ -44,11 +45,7 @@ export default function ActivosView() {
   const fetchActivos = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/activos', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
+      const data = await apiGet('/api/activos');
       if (Array.isArray(data)) {
         setActivos(data);
       }
@@ -62,46 +59,28 @@ export default function ActivosView() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/activos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
+      await apiPost('/api/activos', formData);
+      setIsModalOpen(false);
+      setFormData({
+        codigo_activo: '', nombre: '', tipo: 'Servidor', marca: '', modelo: '', numero_serie: '',
+        hostname: '', direccion_ip: '', endpoint: '', sistema_operativo: '', version_so: '',
+        usuario_responsable: '', area: '', sede: '', estado_activo: 'Activo', criticidad: 'MEDIA',
+        descripcion: '', fecha_adquisicion: ''
       });
-      if (res.ok) {
-        setIsModalOpen(false);
-        setFormData({
-          codigo_activo: '', nombre: '', tipo: 'Servidor', marca: '', modelo: '', numero_serie: '',
-          hostname: '', direccion_ip: '', endpoint: '', sistema_operativo: '', version_so: '',
-          usuario_responsable: '', area: '', sede: '', estado_activo: 'Activo', criticidad: 'MEDIA',
-          descripcion: '', fecha_adquisicion: ''
-        });
-        fetchActivos();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Error al crear activo');
-      }
+      fetchActivos();
     } catch (error) {
       console.error('Error creating activo:', error);
+      alert(error.message || 'Error al crear activo');
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Está seguro de eliminar este activo y todas sus vulnerabilidades asociadas?')) return;
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`/api/activos/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchActivos();
-        if (selectedActivo && selectedActivo.id_activo === id) {
-          setIsDetailOpen(false);
-        }
+      await apiDelete(`/api/activos/${id}`);
+      fetchActivos();
+      if (selectedActivo && selectedActivo.id_activo === id) {
+        setIsDetailOpen(false);
       }
     } catch (error) {
       console.error('Error deleting activo:', error);
@@ -115,18 +94,12 @@ export default function ActivosView() {
     setActivoHallazgos([]);
     setActivoPlanes([]);
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
       // We get all hallazgos and filter by id_activo
-      const [hRes, pRes] = await Promise.all([
-        fetch('/api/hallazgos', { headers }),
-        fetch('/api/remediacion', { headers })
+      const [hData, pData] = await Promise.all([
+        apiGet('/api/hallazgos'),
+        apiGet('/api/remediacion')
       ]);
-      
-      const hData = await hRes.json();
-      const pData = await pRes.json();
-      
+
       if (Array.isArray(hData)) {
         const misHallazgos = hData.filter(h => h.id_activo === activo.id_activo);
         setActivoHallazgos(misHallazgos);

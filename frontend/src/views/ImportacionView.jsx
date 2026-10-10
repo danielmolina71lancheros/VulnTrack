@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileDown, CheckCircle, AlertTriangle, FileSpreadsheet, Download, Info } from 'lucide-react';
 import { getUserRole } from '../utils/auth';
+import { apiUpload, apiGetBlob } from '../utils/apiClient';
 
 export default function ImportacionView() {
   const [file, setFile] = useState(null);
@@ -24,27 +25,18 @@ export default function ImportacionView() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/importacion/plantilla', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'SecureHub_Carga_Masiva.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        alert("Error al descargar la plantilla.");
-      }
+      const blob = await apiGetBlob('/api/importacion/plantilla');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'SecureHub_Carga_Masiva.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
       console.error('Error downloading template:', error);
-      alert("Error de conexión al descargar la plantilla.");
+      alert("Error al descargar la plantilla.");
     }
   };
 
@@ -57,25 +49,14 @@ export default function ImportacionView() {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/importacion/excel', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }, // FormData automatically sets multipart/form-data boundary
-        body: formData
-      });
-
-      const data = await res.json();
-      
-      if (res.ok) {
-        setResult({ success: true, data });
-        setFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = null;
-      } else {
-        setResult({ success: false, data });
-      }
+      const data = await apiUpload('/api/importacion/excel', formData);
+      setResult({ success: true, data });
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = null;
     } catch (error) {
       console.error('Upload error:', error);
-      setResult({ success: false, data: { error: 'Error de conexión con el servidor.' } });
+      // error.message trae el data.error del backend.
+      setResult({ success: false, data: { error: error.message || 'Error de conexión con el servidor.' } });
     } finally {
       setUploading(false);
     }

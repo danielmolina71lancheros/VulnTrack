@@ -11,6 +11,7 @@ import EvidenciasView from './views/EvidenciasView';
 import ReportesView from './views/ReportesView';
 import ImportacionView from './views/ImportacionView';
 import { getUserData } from './utils/auth';
+import { apiGet, apiPost } from './utils/apiClient';
 import { UploadCloud, Sun, Moon } from 'lucide-react';
 
 export default function Dashboard({ onLogout }) {
@@ -48,15 +49,9 @@ export default function Dashboard({ onLogout }) {
 
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch('/api/auditoria', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Take the latest 5 events as notifications
-        setNotifications(data.slice(0, 5));
-      }
+      const data = await apiGet('/api/auditoria');
+      // Take the latest 5 events as notifications
+      setNotifications(data.slice(0, 5));
     } catch (e) {
       console.error('Error fetching notifications:', e);
     }
@@ -64,47 +59,30 @@ export default function Dashboard({ onLogout }) {
 
   const configurarMFA = async () => {
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const response = await fetch('/api/auth/mfa/configurar', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.status === 401) {
-        alert('Su sesion ha expirado. Por favor ingrese de nuevo.');
-        onLogout();
-        return;
-      }
-      const data = await response.json();
-      if (data.error) {
-        if(data.error.includes("configurado")){ setMfaEnabledSession(true); onLogout(); } else { alert(data.error); }
-      } else {
-        setQrMfa(data.qr_code);
-      }
+      // El 401 lo maneja el apiClient (relogin central).
+      const data = await apiGet('/api/auth/mfa/configurar');
+      setQrMfa(data.qr_code);
     } catch (err) {
-      alert("Error generando QR");
+      // El backend responde data.error (p. ej. "El MFA ya está configurado...").
+      if (err.status === 401) return; // ya gestionado por el relogin central
+      if (err.message && err.message.includes("configurado")) {
+        setMfaEnabledSession(true);
+        onLogout();
+      } else {
+        alert(err.message || "Error generando QR");
+      }
     }
   };
 
   const activarMFA = async () => {
     try {
-      const token = localStorage.getItem('vulntrack_token');
-      const response = await fetch('/api/auth/mfa/habilitar', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ token_mfa: tokenMfa })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        alert("¡MFA Activado exitosamente!");
-        setQrMfa('');
-        setTokenMfa('');
-      } else {
-        alert(data.error || "Código inválido");
-      }
+      await apiPost('/api/auth/mfa/habilitar', { token_mfa: tokenMfa });
+      alert("¡MFA Activado exitosamente!");
+      setQrMfa('');
+      setTokenMfa('');
     } catch (err) {
-      alert("Error verificando código");
+      if (err.status === 401) return; // gestionado por el relogin central
+      alert(err.message || "Código inválido");
     }
   };
 
