@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Monitor, Search, Filter, Plus, X, Server, Database, Smartphone, Globe, FileText, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost, apiDelete } from '../utils/apiClient';
 
 export default function ActivosView() {
@@ -168,7 +168,7 @@ export default function ActivosView() {
             <p className="text-sm text-gray-500">Inventario centralizado y postura de seguridad</p>
           </div>
         </div>
-        {['ADMINISTRADOR', 'GESTOR_ACTIVOS'].includes(getUserRole()) && (
+        {tienePermiso('GESTOR_ACTIVOS') && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-brand-primary hover:bg-brand-secondary text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-sm transition-colors"
@@ -266,7 +266,7 @@ export default function ActivosView() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => openDetail(activo)} className="text-brand-primary hover:text-brand-secondary text-sm font-medium mr-3">Ver Detalle</button>
-                      {['ADMINISTRADOR', 'GESTOR_ACTIVOS'].includes(getUserRole()) && (
+                      {tienePermiso('GESTOR_ACTIVOS') && (
                         <button onClick={() => handleDelete(activo.id_activo)} className="text-red-600 hover:text-red-800 text-sm font-medium">Eliminar</button>
                       )}
                     </td>

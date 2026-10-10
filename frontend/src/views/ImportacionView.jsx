@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileDown, CheckCircle, AlertTriangle, FileSpreadsheet, Download, Info } from 'lucide-react';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiUpload, apiGetBlob } from '../utils/apiClient';
 
 export default function ImportacionView() {
@@ -62,8 +62,11 @@ export default function ImportacionView() {
     }
   };
 
-  // Solo ADMIN y ANALISTA pueden importar
-  if (!['ADMINISTRADOR', 'ANALISTA_SEGURIDAD'].includes(getUserRole())) {
+  // Accion administrativa: el backend POST /api/importacion/excel SOLO admite
+  // ADMINISTRADOR (un ANALISTA_SEGURIDAD recibiria 403), por lo que ocultamos
+  // el modulo salvo que se tenga ese permiso. Discrepancia documentada:
+  // antes la UI mostraba el modulo tambien a ANALISTA_SEGURIDAD.
+  if (!tienePermiso('ADMINISTRADOR')) {
     return (
       <div className="p-6 text-center text-gray-500 mt-20">
         No tienes permisos para acceder a este módulo.

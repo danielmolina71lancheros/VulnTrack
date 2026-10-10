@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Plus, Search, Filter, X, ShieldCheck, Clock, FileText, Activity, Target } from 'lucide-react';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost, apiPatch } from '../utils/apiClient';
 
 export default function RemediacionesView() {
@@ -126,7 +126,7 @@ export default function RemediacionesView() {
             <p className="text-sm text-gray-500">Gestión de mitigación M:N y control de SLAs</p>
           </div>
         </div>
-        {['ADMINISTRADOR', 'ANALISTA_SEGURIDAD', 'AUDITOR'].includes(getUserRole()) && (
+        {tienePermiso('ANALISTA_SEGURIDAD', 'AUDITOR') && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center space-x-2 bg-brand-primary hover:bg-brand-secondary text-white px-4 py-2 rounded-lg transition-colors shadow-sm text-sm font-medium"

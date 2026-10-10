@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Edit, Trash2, X, Plus } from 'lucide-react';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient';
 
 export default function UsuariosView() {
@@ -95,7 +95,7 @@ export default function UsuariosView() {
           <Users className="w-8 h-8 text-brand-primary" />
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Gestión de Usuarios</h1>
         </div>
-        {getUserRole() === 'ADMINISTRADOR' && (
+        {tienePermiso('ADMINISTRADOR') && (
           <button 
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center space-x-2 bg-brand-primary hover:bg-brand-secondary text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
@@ -133,7 +133,7 @@ export default function UsuariosView() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center space-x-2">
-                      {getUserRole() === 'ADMINISTRADOR' ? (
+                      {tienePermiso('ADMINISTRADOR') ? (
                         <>
                           <button 
                             onClick={() => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Plus, Edit2, Trash2, X, CheckCircle2 } from 'lucide-react';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient';
 
 export default function RolesPermisosView() {
@@ -100,12 +101,14 @@ export default function RolesPermisosView() {
             Administra los roles de acceso adaptados a las necesidades de tu empresa.
           </p>
         </div>
-        <button 
-          onClick={() => openModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-medium"
-        >
-          <Plus className="w-4 h-4" /> Crear Nuevo Rol
-        </button>
+        {tienePermiso('EDITAR_ROLES') && (
+          <button 
+            onClick={() => openModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-brand-secondary font-medium"
+          >
+            <Plus className="w-4 h-4" /> Crear Nuevo Rol
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -119,7 +122,7 @@ export default function RolesPermisosView() {
               <div key={rol.id_rol} className="border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200">{rol.nombre}</h3>
-                  {rol.nombre !== 'ADMINISTRADOR' && (
+                  {rol.nombre !== 'ADMINISTRADOR' && tienePermiso('EDITAR_ROLES') && (
                     <div className="flex gap-2">
                       <button onClick={() => openModal(rol)} className="text-gray-400 hover:text-brand-primary"><Edit2 className="w-4 h-4" /></button>
                       <button onClick={() => handleDelete(rol.id_rol)} className="text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>

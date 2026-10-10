@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TriangleAlert, Search, Filter, Plus, X, ShieldAlert, Activity, FileText, CheckCircle, Clock } from 'lucide-react';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost, apiDelete } from '../utils/apiClient';
 
 export default function VulnerabilidadesView() {
@@ -174,7 +174,7 @@ export default function VulnerabilidadesView() {
             <p className="text-sm text-gray-500">Hallazgos, seguimiento y correlación NVD</p>
           </div>
         </div>
-        {['ADMINISTRADOR', 'AUDITOR'].includes(getUserRole()) && (
+        {tienePermiso('AUDITOR') && (
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-brand-primary hover:bg-brand-secondary text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-sm transition-colors"
@@ -277,7 +277,7 @@ export default function VulnerabilidadesView() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => openDetail(h)} className="text-brand-primary hover:text-brand-secondary text-sm font-medium mr-3">Ver Detalle</button>
-                      {['ADMINISTRADOR', 'AUDITOR'].includes(getUserRole()) && (
+                      {tienePermiso('AUDITOR') && (
                         <button onClick={() => handleDelete(h.id_hallazgo)} className="text-red-600 hover:text-red-800 text-sm font-medium">Eliminar</button>
                       )}
                     </td>

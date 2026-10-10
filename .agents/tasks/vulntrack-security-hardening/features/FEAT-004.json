@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-004",
+  "type": "refactor",
+  "description": "FASE 4 (cuarta, estructural). Alinear la autorizacion del frontend con PERMISOS en vez de roles hardcodeados. El backend usa RBAC dinamico (autorizarRoles en backend/src/middlewares/roleMiddleware.js): concede si rol==='ADMINISTRADOR' o permisos.includes('ALL'), o si para algun requerido p: rol===p || permisos.includes(p). Anadir tienePermiso() en utils/auth.js replicando esa logica y reemplazar las comprobaciones [...roles].includes(getUserRole()) que controlan botones crear/editar/eliminar por tienePermiso con los MISMOS strings que el backend pasa a autorizarRoles. Solo UX (ocultar/mostrar); la seguridad real la impone el backend. Depende de FEAT-003.",
+  "status": "completed",
+  "steps": [
+    "src/utils/auth.js: anadir export const tienePermiso = (...requeridos) => { const data = getUserData(); if (!data) return false; const { rol, permisos } = data; if (rol === 'ADMINISTRADOR' || (Array.isArray(permisos) && permisos.includes('ALL'))) return true; return requeridos.some(p => rol === p || (Array.isArray(permisos) && permisos.includes(p))); }; Mantener getUserData/getUserRole. Comentar el mapeo accion->permiso.",
+    "src/views/ActivosView.jsx (lineas ~198 y ~296): ['ADMINISTRADOR','GESTOR_ACTIVOS'].includes(getUserRole()) -> tienePermiso('GESTOR_ACTIVOS'). Importar tienePermiso.",
+    "src/views/VulnerabilidadesView.jsx (lineas ~213 y ~316): ['ADMINISTRADOR','AUDITOR'].includes(getUserRole()) -> tienePermiso('AUDITOR').",
+    "src/views/RiesgosView.jsx (linea ~117): ['ADMINISTRADOR','ANALISTA_SEGURIDAD'].includes(getUserRole()) -> tienePermiso('ANALISTA_SEGURIDAD').",
+    "src/views/RemediacionesView.jsx (linea ~143): ['ADMINISTRADOR','ANALISTA_SEGURIDAD','AUDITOR'].includes(getUserRole()) -> tienePermiso('ANALISTA_SEGURIDAD','AUDITOR') (coincide con autorizarRoles de crear plan).",
+    "src/views/ImportacionView.jsx (linea ~85): el backend POST /api/importacion/excel SOLO admite ADMINISTRADOR (ANALISTA_SEGURIDAD recibiria 403). Es accion administrativa -> tienePermiso('ADMINISTRADOR'). Documentar la discrepancia en comentario.",
+    "src/views/UsuariosView.jsx (lineas ~133 y ~171): getUserRole() === 'ADMINISTRADOR' -> tienePermiso('ADMINISTRADOR') (gestion de usuarios = administrativa, se oculta sin permiso).",
+    "src/views/RolesPermisosView.jsx: hoy NO oculta los controles por rol. Localizar el boton de crear rol ('+ Nuevo Rol' / openModal) y los botones Editar/Eliminar de cada rol y envolverlos con tienePermiso('EDITAR_ROLES') (admin ya cubierto por la logica). Importar tienePermiso.",
+    "No modificar los .includes( que son de filtrado/busqueda (searchTerm, permisos.includes en el formulario de roles, vulnerabilidades.includes en seleccion): no son checks de autorizacion."
+  ],
+  "acceptance_criteria": [
+    "utils/auth.js exporta tienePermiso con la logica del backend (ADMINISTRADOR / 'ALL' / rol===p / permisos.includes(p)) y conserva getUserData/getUserRole.",
+    "Ninguna vista usa [...roles].includes(getUserRole()) ni getUserRole()==='ADMINISTRADOR' para decidir visibilidad de botones de accion; usan tienePermiso con los strings del backend.",
+    "Las acciones administrativas (usuarios, roles, importacion) se ocultan sin permiso; las de dominio permanecen permisivas dejando que el backend aplique 403.",
+    "'npm run build' y 'npm run lint' pasan sin errores."
+  ],
+  "verification": [
+    "cd d:/VulnTrack/frontend; npm run build  (sin errores)",
+    "cd d:/VulnTrack/frontend; npm run lint  (sin errores nuevos)",
+    "Grep 'includes(getUserRole())' en src/views/**: sin coincidencias.",
+    "Grep 'getUserRole()' en src/views/**: no debe usarse para gating de botones (su uso en Dashboard para mostrar el nombre del rol en el header es display y se permite).",
+    "Revision manual: usuario admin ve todos los controles; rol limitado ve ocultos usuarios/roles/importacion y visibles los de dominio."
+  ],
+  "blocked_reason": null,
+  "findings": "Implementado. Anadido export const tienePermiso(...requeridos) en src/utils/auth.js replicando autorizarRoles del backend (ADMINISTRADOR o permisos.includes('ALL') => true; si no, requeridos.some(p => rol===p || permisos.includes(p))), con comentario del mapeo accion->permiso. getUserData/getUserRole se conservan. Reemplazos de gating (se eliminaron los imports de getUserRole ya no usados y se importo tienePermiso): ActivosView (boton Registrar activo y boton Eliminar) -> tienePermiso('GESTOR_ACTIVOS'); VulnerabilidadesView (Registrar Hallazgo y Eliminar) -> tienePermiso('AUDITOR'); RiesgosView (Auto-Evaluar) -> tienePermiso('ANALISTA_SEGURIDAD'); RemediacionesView (Crear Plan) -> tienePermiso('ANALISTA_SEGURIDAD','AUDITOR'); UsuariosView (Crear Usuario y acciones Editar/Eliminar) -> tienePermiso('ADMINISTRADOR'); RolesPermisosView (boton '+ Crear Nuevo Rol' y botones Editar/Eliminar por rol, manteniendo la exclusion del rol ADMINISTRADOR) -> tienePermiso('EDITAR_ROLES') con import anadido. ImportacionView: el gate de pagina cambio de ['ADMINISTRADOR','ANALISTA_SEGURIDAD'] a tienePermiso('ADMINISTRADOR') porque el backend POST /api/importacion/excel solo admite ADMINISTRADOR; discrepancia documentada en comentario. CAMBIO VISIBLE: un ANALISTA_SEGURIDAD ya no vera el modulo de Importacion (antes si, pero el backend le habria devuelto 403); al estar descrito explicitamente en el FEAT no requirio confirmacion. No se tocaron los .includes( de busqueda/filtrado (searchTerm, permisos del formulario de roles, vulnerabilidades en seleccion de remediacion). Verificacion: 'npm run build' OK (vite built in 6.29s, exit 0); 'npm run lint' OK (oxlint exit 0, solo warnings preexistentes de unused imports/vars y react(immutability), ninguno introducido por este cambio); grep 'includes(getUserRole())' en src/views sin coincidencias y grep 'getUserRole' en src/views sin coincidencias (el uso display en Dashboard no se toco)."
+}

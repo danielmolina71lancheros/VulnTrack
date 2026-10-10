@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Plus, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { getUserRole } from '../utils/auth';
+import { tienePermiso } from '../utils/auth';
 import { apiGet, apiPost } from '../utils/apiClient';
 
 export default function RiesgosView() {
@@ -107,7 +107,7 @@ export default function RiesgosView() {
           <Target className="w-8 h-8 text-brand-primary" />
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Evaluación y Gestión de Riesgos</h1>
         </div>
-        {['ADMINISTRADOR', 'ANALISTA_SEGURIDAD'].includes(getUserRole()) && (
+        {tienePermiso('ANALISTA_SEGURIDAD') && (
           <button
             onClick={handleAutoEvaluate}
             className="flex items-center space-x-2 bg-brand-primary hover:bg-brand-primary text-white px-4 py-2 rounded-lg transition-colors"
