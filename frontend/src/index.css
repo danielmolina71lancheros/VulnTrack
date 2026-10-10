@@ -6,4 +6,18 @@
     "0%": { opacity: 0, transform: "translateY(10px)" },
     "100%": { opacity: 1, transform: "translateY(0)" },
   };
+
+  --color-pacific-blue: #0fa3b1;
+  --color-icy-blue: #b5e2fa;
+  --color-porcelain: #f9f7f3;
+  --color-verdigris: #2a9d8f;
+  --color-charcoal-blue: #264653;
+  
+  --color-brand-primary: #0fa3b1;
+  --color-brand-secondary: #2a9d8f;
+  --color-brand-dark: #264653;
+  --color-brand-light: #f9f7f3;
+  --color-brand-accent: #b5e2fa;
 }
+
+@custom-variant dark (&:is(.dark *));
