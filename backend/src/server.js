@@ -12,8 +12,19 @@ const remediacionRoutes = require('./routes/remediacionRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const auditoriaRoutes = require('./routes/auditoriaRoutes');
 const rolesRoutes = require('./routes/rolesRoutes');
+const importacionRoutes = require('./routes/importacionRoutes');
+const notificacionesRoutes = require('./routes/notificacionesRoutes');
 
 const app = express();
+
+// Confianza en el primer proxy (frontend) para que req.ip refleje la IP real del cliente.
+app.set('trust proxy', 1);
+
+// Lista blanca de origenes permitidos por CORS leida de CORS_ORIGINS (CSV).
+// Fallback de desarrollo si la variable no esta definida.
+const origenesPermitidos = (process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+    : ['http://localhost:5173', 'http://localhost', 'http://localhost:80']);
 
 // Swagger Documentation
 const swaggerUi = require('swagger-ui-express');
@@ -22,7 +33,15 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // 1. Defensas perimetrales
 app.use(helmet()); // Oculta Express y configura cabeceras anti-XSS/Clickjacking
-app.use(cors()); // Permite peticiones del Frontend desde cualquier puerto local
+// CORS restringido: solo se aceptan los origenes de la lista blanca (CORS_ORIGINS).
+// Las peticiones sin Origin (p. ej. curl o health checks) se permiten.
+app.use(cors({
+    origin: (origin, cb) => {
+        if (!origin || origenesPermitidos.includes(origin)) return cb(null, true);
+        return cb(new Error('Origen no permitido por CORS'));
+    },
+    credentials: true,
+}));
 app.use(express.json({ limit: '10kb' })); // Previene ataques DoS por Payload gigante
 
 // 2. Ruta de validación de infraestructura
@@ -40,6 +59,8 @@ app.use('/api/remediacion', remediacionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/auditoria', auditoriaRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/importacion', importacionRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 
 // Manejador de rutas no encontradas
 app.use((req, res) => {
