@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Capa de seguridad del runtime backend (TAREA 4 + TAREA 5): cliente Redis reutilizable con degradacion fail-open, middleware de rate-limiting de login respaldado por Redis aplicado SOLO a POST /api/auth/login, CORS restringido por CORS_ORIGINS con fallback de desarrollo, y las nuevas variables de entorno. La dependencia 'redis' ^4.6.13 ya esta en backend/package.json pero no se usa. Independiente de FEAT-002 y FEAT-003 salvo por las claves de entorno que FEAT-002 inyecta al compose.",
+  "status": "completed",
+  "steps": [
+    "Crear d:\\VulnTrack\\backend\\src\\config\\redis.js: singleton con createClient({ socket: { host: process.env.REDIS_HOST || 'securehub-redis' }, password: process.env.REDIS_PASSWORD }). Comentarios en espanol. Registrar listener client.on('error', e => console.error('[REDIS]', e.message)) que SOLO loguea (nunca throw). Conexion perezosa: una funcion async getRedis() que conecta la primera vez (if (!cliente.isOpen) await cliente.connect()) y en caso de fallo loguea y devuelve null. Exportar getRedis(), una funcion async incrementarContador(clave, ttlSeg) que obtiene el cliente, hace INCR y, si el valor resultante es 1, EXPIRE clave ttlSeg; devuelve el conteo (number) o null si Redis no esta disponible. Nunca debe lanzar hacia afuera: capturar y devolver null.",
+    "Crear d:\\VulnTrack\\backend\\src\\middlewares\\rateLimitLogin.js siguiendo el patron factory de backend/src/middlewares/roleMiddleware.js. Exportar limitarLogin({ ventanaSeg = 900, maximo = 10 } = {}) que devuelve async (req,res,next). Derivar ip = req.ip y correo = (req.body && req.body.correo ? String(req.body.correo).toLowerCase() : null). Llamar incrementarContador('login:ip:' + ip, ventanaSeg) y, si hay correo, incrementarContador('login:ipcorreo:' + ip + ':' + correo, ventanaSeg). Si AMBOS devuelven null (Redis caido) -> console.error y next() (fail-open). Si algun conteo > maximo -> registrar auditoria best-effort con registrarAuditoria('BYPASS', null, 'LOGIN_RATE_LIMITED', 'Seguridad', { ip, correo }, req.ip, { recurso: 'login', resultado: 'DENEGADO', descripcion: 'Bloqueo por fuerza bruta en login' }) (await dentro de try/catch, sin romper la respuesta) y responder res.status(429).json({ error: 'Demasiados intentos de inicio de sesion. Intenta de nuevo en unos minutos.' }). En caso contrario next(). Importar { registrarAuditoria } de ../utils/auditoriaHelper.",
+    "Modificar d:\\VulnTrack\\backend\\src\\routes\\authRoutes.js: importar { limitarLogin } de ../middlewares/rateLimitLogin y aplicar SOLO a la ruta de login: router.post('/login', limitarLogin(), login). No tocar /registro ni las rutas MFA.",
+    "Modificar d:\\VulnTrack\\backend\\src\\server.js: anadir app.set('trust proxy', 1) antes de los middlewares de defensa (para que req.ip sea correcto tras el frontend). Sustituir app.use(cors()) por una configuracion que lea process.env.CORS_ORIGINS (CSV: split(',').map(s=>s.trim()).filter(Boolean)) con fallback de desarrollo ['http://localhost:5173','http://localhost','http://localhost:80']. Usar app.use(cors({ origin: (origin, cb) => { if (!origin || listaPermitidos.includes(origin)) return cb(null, true); return cb(new Error('Origen no permitido por CORS')); }, credentials: true })). Mantener el comentario en espanol explicando la restriccion.",
+    "Modificar d:\\VulnTrack\\.env (raiz): anadir REDIS_HOST=securehub-redis y CORS_ORIGINS=http://localhost:5173,http://localhost sin duplicar claves existentes.",
+    "Modificar d:\\VulnTrack\\.env.example (raiz): anadir REDIS_HOST=securehub-redis y CORS_ORIGINS=http://localhost:5173,http://localhost con comentarios en espanol, sin duplicar claves."
+  ],
+  "acceptance_criteria": [
+    "node --check d:\\VulnTrack\\backend\\src\\config\\redis.js pasa sin errores.",
+    "node --check d:\\VulnTrack\\backend\\src\\middlewares\\rateLimitLogin.js pasa sin errores.",
+    "node --check d:\\VulnTrack\\backend\\src\\routes\\authRoutes.js pasa sin errores.",
+    "node --check d:\\VulnTrack\\backend\\src\\server.js pasa sin errores.",
+    "El middleware limitarLogin esta aplicado unicamente a la ruta POST /login y a ninguna otra en authRoutes.js.",
+    "server.js ya no contiene app.use(cors()) sin argumentos; CORS lee CORS_ORIGINS con fallback de desarrollo y existe app.set('trust proxy', 1).",
+    ".env y .env.example contienen REDIS_HOST y CORS_ORIGINS sin claves duplicadas."
+  ],
+  "verification": [
+    "cd d:\\VulnTrack\\backend && node --check src/config/redis.js",
+    "cd d:\\VulnTrack\\backend && node --check src/middlewares/rateLimitLogin.js",
+    "cd d:\\VulnTrack\\backend && node --check src/routes/authRoutes.js",
+    "cd d:\\VulnTrack\\backend && node --check src/server.js",
+    "cd d:\\VulnTrack\\backend && node -e \"require('./src/config/redis'); console.log('redis module OK')\" (carga sin lanzar aunque Redis no este arriba)"
+  ],
+  "blocked_reason": null,
+  "findings": "redis.js exporta { getRedis, incrementarContador }. Firma: incrementarContador(clave, ttlSeg) => Promise<number|null> (null si Redis no disponible; INCR y, si conteo===1, EXPIRE). getRedis() => Promise<RedisClientType|null>, conexion perezosa, nunca lanza. El modulo redis.js carga sin lanzar aunque Redis este caido (conexion diferida en getRedis). rateLimitLogin.js exporta { limitarLogin } como factory: limitarLogin({ ventanaSeg=900, maximo=10 }={}) => async (req,res,next). Usa claves Redis 'login:ip:<ip>' y 'login:ipcorreo:<ip>:<correo>'. Responde 429 con { error: 'Demasiados intentos de inicio de sesion. Intenta de nuevo en unos minutos.' } al exceder; fail-open (next()) si ambos contadores son null. Auditoria de bloqueo: registrarAuditoria('BYPASS', null, 'LOGIN_RATE_LIMITED', 'Seguridad', { ip, correo }, req.ip, { recurso:'login', resultado:'DENEGADO', descripcion:'Bloqueo por fuerza bruta en login' }). Aplicado SOLO en authRoutes.js a router.post('/login', limitarLogin(), login); /registro y rutas MFA sin cambios. server.js: app.set('trust proxy', 1) anadido; cors() sin args reemplazado por whitelist que lee CORS_ORIGINS (CSV) con fallback ['http://localhost:5173','http://localhost','http://localhost:80'] y credentials:true. Variables anadidas en .env y .env.example: REDIS_HOST=securehub-redis y CORS_ORIGINS=http://localhost:5173,http://localhost. Verificacion: node --check de los 4 archivos -> exit 0; carga de modulo redis.js -> 'redis module OK' (exit 0). Entorno Windows PowerShell 5.1: '&&' no soportado, usar ';' entre comandos."
+}
