@@ -13,6 +13,12 @@ services:
     networks:
       - securehub_lan
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   securehub-redis:
     image: redis:7-alpine
@@ -23,6 +29,12 @@ services:
     networks:
       - securehub_lan
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   securehub-files:
     image: nginx:alpine
@@ -50,16 +62,21 @@ services:
     container_name: securehub_api
     environment:
       DB_HOST: securehub-db
-      DB_NAME: ${DB_NAME}          # <- Inyección explícita
-      DB_USER: ${DB_USER}          # <- Inyección explícita
-      DB_PASSWORD: ${DB_PASSWORD}  # <- Inyección explícita
-      JWT_SECRET: ${JWT_SECRET}    # <- Inyección explícita
+      DB_NAME: ${DB_NAME}                  # <- Inyección explícita
+      DB_USER: ${DB_USER}                  # <- Inyección explícita
+      DB_PASSWORD: ${DB_PASSWORD}          # <- Inyección explícita
+      DB_APP_USER: ${DB_APP_USER}          # <- Cuenta de bajo privilegio de la API
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD}  # <- Cuenta de bajo privilegio de la API
+      JWT_SECRET: ${JWT_SECRET}            # <- Inyección explícita
       REDIS_HOST: securehub-redis
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       FILE_SERVER_URL: http://securehub-files
     depends_on:
-      - securehub-db
-      - securehub-redis
+      securehub-db:
+        condition: service_healthy
+      securehub-redis:
+        condition: service_healthy
     volumes:
       - logs-data:/app/logs
       - ./backend/src:/app/src

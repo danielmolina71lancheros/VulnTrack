@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-002",
+  "type": "chore",
+  "description": "Orquestacion de docker-compose (TAREA 6): healthcheck de Postgres con pg_isready, healthcheck de Redis con redis-cli ping, arranque ordenado de securehub-api con depends_on en forma larga y condition: service_healthy sobre securehub-db y securehub-redis, e inyeccion de CORS_ORIGINS al servicio securehub-api. REDIS_HOST ya esta inyectado. Depende de FEAT-001 solo porque CORS_ORIGINS debe existir en .env (FEAT-001 lo anade); por lo demas es editable de forma independiente.",
+  "status": "completed",
+  "steps": [
+    "Modificar d:\\VulnTrack\\docker-compose.yml, servicio securehub-db: anadir bloque healthcheck con test: [\"CMD-SHELL\", \"pg_isready -U ${DB_USER} -d ${DB_NAME}\"], interval: 10s, timeout: 5s, retries: 5, start_period: 10s. Mantener la indentacion de 2 espacios del archivo.",
+    "Modificar securehub-redis: anadir healthcheck con test: [\"CMD-SHELL\", \"redis-cli -a ${REDIS_PASSWORD} ping | grep -q PONG\"], interval: 10s, timeout: 5s, retries: 5, start_period: 5s.",
+    "Modificar securehub-api: cambiar depends_on de la forma corta (lista) a la forma larga: securehub-db: { condition: service_healthy } y securehub-redis: { condition: service_healthy }. Anadir CORS_ORIGINS: ${CORS_ORIGINS} al bloque environment (REDIS_HOST y REDIS_PASSWORD ya estan).",
+    "Si docker esta disponible, correr 'docker compose config' desde d:\\VulnTrack y confirmar que el archivo renderiza sin errores. Si docker NO esta disponible, dejar constancia explicita en findings y validar el YAML por estructura/indentado leyendo el archivo."
+  ],
+  "acceptance_criteria": [
+    "securehub-db tiene un healthcheck con pg_isready usando ${DB_USER} y ${DB_NAME}.",
+    "securehub-redis tiene un healthcheck con redis-cli ping usando ${REDIS_PASSWORD}.",
+    "securehub-api usa depends_on en forma larga con condition: service_healthy sobre securehub-db y securehub-redis.",
+    "securehub-api.environment incluye CORS_ORIGINS: ${CORS_ORIGINS}.",
+    "'docker compose config' valida el archivo (o, si docker no esta disponible, se documenta en findings y el YAML queda estructuralmente valido)."
+  ],
+  "verification": [
+    "cd d:\\VulnTrack && docker compose config (debe renderizar sin error). Si el comando no existe o docker no esta instalado, registrar en findings 'docker no disponible en el entorno' y validar YAML por indentado."
+  ],
+  "blocked_reason": null,
+  "findings": "Implementado en docker-compose.yml con indentacion de 2 espacios y sin tocar otros servicios: (1) securehub-db healthcheck con pg_isready -U ${DB_USER} -d ${DB_NAME} (interval 10s, timeout 5s, retries 5, start_period 10s); (2) securehub-redis healthcheck con redis-cli -a ${REDIS_PASSWORD} ping | grep -q PONG (interval 10s, timeout 5s, retries 5, start_period 5s); (3) securehub-api depends_on en forma larga con condition: service_healthy sobre securehub-db y securehub-redis; (4) CORS_ORIGINS: ${CORS_ORIGINS} anadido al environment de securehub-api. Verificacion: docker SI disponible (Docker Compose v5.5.1); 'docker compose config' desde d:\\VulnTrack renderizo el archivo sin errores, mostrando ambos healthchecks, el depends_on largo con condition service_healthy/required: true y CORS_ORIGINS resuelto a http://localhost:5173,http://localhost. YAML estructuralmente valido."
+}
