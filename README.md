@@ -32,22 +32,25 @@ El flujo operativo sigue una secuencia estricta:
 
 ## Stack Tecnológico
 
-| Capa | Tecnología | Rol en el proyecto |
-|---|---|---|
-| Frontend | React + Vite, Tailwind CSS, Lucide React | SPA con hot-reload en desarrollo, build optimizado en producción. |
-| Backend | Node.js + Express | API REST, lógica de negocio y enrutamiento. |
-| Base de datos | PostgreSQL 16 | Datos relacionales y **Row-Level Security (RLS)** para aislamiento estricto multi-tenant. |
-| Caché / Mensajería | Redis 7 | Almacenamiento rápido de sesiones. *(Nota: Preparado para escalarse con middlewares de rate-limiting)*. |
-| Automatización | `node-cron` | Hilo asíncrono integrado (`slaWorker.js`) para el monitoreo automatizado de vencimientos de SLA. |
-| Autenticación | `jsonwebtoken`, `bcryptjs`, `speakeasy` + `qrcode` | JWT stateless, hashing robusto de contraseñas con salt automático, MFA/TOTP compatible con Google Authenticator. |
-| Contenerización | Docker + Docker Compose | Orquestación local de base de datos, caché y API. |
-| Proxy inverso | Nginx | Termina TLS, sirve estáticos y enruta a la API en entornos productivos. |
+Los nombres entre paréntesis corresponden a los servicios reales definidos en `docker-compose.yml`.
+
+| Capa | Tecnología | Servicio compose | Rol en el proyecto |
+|---|---|---|---|
+| Frontend | React + Vite, Tailwind CSS, Lucide React | `securehub-frontend` (`:80`) | SPA publicada directamente en el puerto `80`; hot-reload en desarrollo con Vite, build optimizado en producción. |
+| Backend | Node.js + Express | `securehub-api` (`:3000`) | API REST, lógica de negocio y enrutamiento. |
+| Base de datos | PostgreSQL 18 (`postgres:18.6-alpine`) | `securehub-db` | Datos relacionales y **Row-Level Security (RLS)** para aislamiento estricto multi-tenant. |
+| Caché / Mensajería | Redis 7 | `securehub-redis` | Almacenamiento rápido de sesiones. *(Nota: Preparado para escalarse con middlewares de rate-limiting)*. |
+| Servidor de evidencias | Nginx (`nginx:alpine`) | `securehub-files` | Sirve **únicamente** las evidencias estáticas (volumen `files-data` montado en `/usr/share/nginx/html/evidencias`). Según `config/nginx.conf` solo permite `GET`/`HEAD` sin listado de directorios. **No** termina TLS ni actúa como reverse proxy que enrute la API. |
+| Escáner | Imagen propia (`build ./scanner`) | `securehub-scanner` | Proceso que consulta la API vía `API_URL=http://securehub-api:3000` para su trabajo de escaneo. |
+| Automatización | `node-cron` | *(hilo interno de `securehub-api`)* | Hilo asíncrono integrado (`slaWorker.js`) para el monitoreo automatizado de vencimientos de SLA. No es un contenedor separado. |
+| Autenticación | `jsonwebtoken`, `bcryptjs`, `speakeasy` + `qrcode` | *(parte de `securehub-api`)* | JWT stateless, hashing robusto de contraseñas con salt automático, MFA/TOTP compatible con Google Authenticator. |
+| Contenerización | Docker + Docker Compose | — | Orquestación local de todos los servicios anteriores. |
 
 ---
 
 ## Arquitectura del Sistema
 
-La arquitectura aísla completamente a las empresas a nivel de base de datos mediante RLS (Row Level Security). Las tareas asíncronas se gestionan mediante un worker interno. En producción, la API y las bases de datos permanecen en la red interna de Docker, exponiendo únicamente Nginx.
+La arquitectura aísla completamente a las empresas a nivel de base de datos mediante RLS (Row Level Security). Las tareas asíncronas se gestionan mediante un hilo `node-cron` integrado en la propia API (no hay contenedor de worker separado). El cliente accede **directamente** a dos servicios expuestos: el frontend en el puerto `80` (`securehub-frontend`) y la API en el puerto `3000` (`securehub-api`). No existe un reverse proxy que termine TLS ni que enrute la API; el servicio Nginx (`securehub-files`) solo sirve evidencias estáticas dentro de la red interna.
 
 ```mermaid
 graph TD
@@ -59,30 +62,34 @@ graph TD
         Vite["Vite Dev Server<br/>:5173"]
     end
 
-    subgraph "Docker Compose - Red interna"
-        Nginx["Nginx Reverse Proxy<br/>:80 / :443"]
-        API["Node.js API Core<br/>:3000"]
-        Worker["Worker (node-cron)<br/>Integrado en API"]
-        DB[("PostgreSQL + RLS<br/>:5432")]
-        Redis[("Redis<br/>:6379")]
+    subgraph "Docker Compose - Red interna (securehub_lan)"
+        Frontend["securehub-frontend<br/>SPA React :80"]
+        API["securehub-api<br/>Node.js + Express :3000<br/>(incluye worker node-cron)"]
+        Scanner["securehub-scanner<br/>build ./scanner"]
+        Files["securehub-files<br/>Nginx estático de evidencias"]
+        DB[("securehub-db<br/>PostgreSQL 18 + RLS<br/>:5432")]
+        Redis[("securehub-redis<br/>Redis :6379")]
     end
 
     NVD["API NVD / NIST<br/>(Fuente externa de CVEs)"]
 
-    Client -->|"Peticiones"| Nginx
-    Client -.->|"HTTP local"| Vite
-    Nginx -->|"proxy_pass"| API
+    Client -->|"HTTP :80 (SPA)"| Frontend
+    Client -->|"HTTP :3000 (API REST)"| API
+    Client -.->|"HTTP local (dev)"| Vite
     Vite -->|"fetch /api"| API
-    API <-->|"Queries parametrizadas"| DB
-    API <-->|"Almacena sesiones"| Redis
+    API <-->|"Queries parametrizadas (RLS)"| DB
+    API <-->|"Sesiones / rate-limit"| Redis
     API -->|"Consulta HTTP"| NVD
-    Worker -->|"Evalúa SLAs (Bypass RLS)"| DB
+    API -->|"Lee/escribe evidencias"| Files
+    Scanner -->|"API_URL http://securehub-api:3000"| API
 
     classDef external fill:#444,stroke:#f66,color:#fff
-    classDef worker fill:#1e3a5f,stroke:#4da3ff,color:#fff
+    classDef files fill:#1e3a5f,stroke:#4da3ff,color:#fff
     class NVD external
-    class Worker worker
+    class Files files
 ```
+
+> **Endpoint de salud:** `GET /health` responde `{ status: 'OK', servicio: 'SecureHub API', version: '1.0.0' }`, útil para healthchecks y verificación rápida de que la API está en línea.
 
 ---
 
@@ -229,12 +236,16 @@ Antes de clonar, verifica tener instaladas las siguientes herramientas:
 
 ## Variables de Entorno
 
-Debes crear un archivo `.env` en la raíz del backend.
+Debes crear un archivo `.env` en la **raíz del proyecto** (junto a `docker-compose.yml`), partiendo de la plantilla `.env.example` incluida en esa misma raíz.
 
 | Variable | Propósito | Notas de seguridad |
 |---|---|---|
-| `DB_HOST`, `DB_USER` | Credenciales de DB | Usar cuenta de bajo privilegio (`app_user`). |
-| `JWT_SECRET` | Firma criptográfica JWT | Nunca hardcodear en código fuente. Usar una cadena compleja. |
+| `DB_HOST`, `DB_USER` | Credenciales del superusuario de la DB | El superusuario crea la base; evita usarlo para la operación normal de la API. |
+| `DB_APP_USER` | Cuenta de bajo privilegio que usa la API | Debe existir en `init.sql`. Garantiza que las políticas RLS apliquen; sin permisos para crear/eliminar tablas. |
+| `DB_APP_PASSWORD` | Contraseña de la cuenta `DB_APP_USER` | Nunca hardcodear. Distinta de la del superusuario. |
+| `CORS_ORIGINS` | Lista CSV de orígenes permitidos por CORS | En producción, restringir a los dominios reales del frontend (p. ej. `http://localhost:5173,http://localhost`). |
+| `REDIS_HOST` | Host del contenedor Redis | En docker-compose apunta al servicio `securehub-redis`. |
+| `JWT_SECRET` | Firma criptográfica JWT | Nunca hardcodear en código fuente. Usar una cadena larga y aleatoria. |
 | `NVD_API_KEY` | API Key de NIST (Opcional) | Evita bloqueos por Rate-Limit en la ingesta de CVEs. |
 
 ---
@@ -257,7 +268,7 @@ Debes crear un archivo `.env` en la raíz del backend.
 ```bash
    docker compose up -d --build
 ```
-   Esto aprovisiona PostgreSQL, Redis, la API y el Worker de `node-cron`. Verifica que el servicio `api` tenga `depends_on` con `condition: service_healthy` sobre `db` en tu `docker-compose.yml` — si la API arranca antes de que Postgres esté listo para aceptar conexiones, fallará en el primer intento de conexión y no todos los orquestadores la reinician automáticamente.
+   Esto aprovisiona PostgreSQL (`securehub-db`), Redis (`securehub-redis`), el servidor de evidencias (`securehub-files`), el escáner (`securehub-scanner`), la API (`securehub-api`, que incluye el hilo `node-cron`) y el frontend (`securehub-frontend`). El servicio `securehub-api` ya declara `depends_on` con `condition: service_healthy` sobre `securehub-db` y `securehub-redis` — así la API no arranca antes de que Postgres y Redis estén listos para aceptar conexiones.
  
 4. **Confirmar que todos los contenedores están arriba:**
 ```bash
@@ -273,10 +284,11 @@ Debes crear un archivo `.env` en la raíz del backend.
 ```
    Abre el panel en: `http://localhost:5173`
  
-6. **(Opcional) Ver logs en vivo de un servicio específico**, por ejemplo el worker, para confirmar que el cron job corre:
+6. **(Opcional) Ver logs en vivo de un servicio específico**, por ejemplo la API, para confirmar que el cron job del worker interno corre:
 ```bash
-   docker compose logs -f worker
+   docker compose logs -f securehub-api
 ```
+   El worker `node-cron` (`slaWorker.js`) se ejecuta dentro de `securehub-api`, por lo que no existe un servicio `worker` separado al que consultar.
 *Abre el panel en: `http://localhost:5173`*
 
 ---
