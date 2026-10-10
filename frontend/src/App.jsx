@@ -48,7 +48,7 @@ function App() {
     e.preventDefault();
     setError('');
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,11 +89,11 @@ function App() {
   return (
     <div className="min-h-screen flex font-sans">
       {/* Panel Izquierdo - Formulario */}
-      <div className="w-full lg:w-[480px] bg-[#0B132B] flex flex-col justify-center px-12 py-10">
+      <div className="w-full lg:w-[480px] bg-brand-dark flex flex-col justify-center px-12 py-10">
         {/* Logo */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-2.5 rounded-xl">
+            <div className="bg-gradient-to-br from-brand-primary to-brand-secondary p-2.5 rounded-xl">
               <Shield className="text-white" size={28} />
             </div>
             <div>
@@ -116,7 +116,7 @@ function App() {
                 <div className="relative">
                   <input
                     type="email"
-                    className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-sm"
+                    className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-colors text-sm"
                     value={correo}
                     onChange={(e) => setCorreo(e.target.value)}
                     placeholder="Usuario o correo electrónico"
@@ -128,7 +128,7 @@ function App() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-sm pr-12"
+                    className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-colors text-sm pr-12"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Contraseña"
@@ -149,20 +149,20 @@ function App() {
                   <input type="checkbox" className="rounded border-gray-600 bg-transparent" />
                   Recordarme
                 </label>
-                <a href="#" className="text-blue-400 hover:text-blue-300 transition-colors">¿Olvidaste tu contraseña?</a>
+                <a href="#" className="text-brand-accent hover:text-brand-accent transition-colors">¿Olvidaste tu contraseña?</a>
               </div>
             </>
           ) : (
             <div>
-              <div className="bg-blue-900/30 border border-blue-500/50 p-4 rounded-xl mb-6 text-center">
-                <p className="text-blue-300 text-sm">
+              <div className="bg-brand-primary/10 border border-brand-primary/50 p-4 rounded-xl mb-6 text-center">
+                <p className="text-brand-accent text-sm">
                   Abre <b>Google Authenticator</b> en tu celular e ingresa el código de 6 dígitos.
                 </p>
               </div>
               <input
                 type="text"
                 maxLength="6"
-                className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-4 text-white text-center text-2xl tracking-[0.5em] placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-white/5 border border-gray-600/50 rounded-xl px-4 py-4 text-white text-center text-2xl tracking-[0.5em] placeholder-gray-500 focus:outline-none focus:border-brand-primary transition-colors"
                 value={mfaToken}
                 onChange={(e) => setMfaToken(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="123456"
@@ -179,7 +179,7 @@ function App() {
 
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold py-3.5 px-4 rounded-xl transition-all duration-200 text-sm"
+            className="w-full bg-gradient-to-r from-brand-primary to-brand-secondary hover:from-brand-secondary hover:to-brand-primary text-white font-semibold py-3.5 px-4 rounded-xl transition-all duration-200 text-sm"
           >
             {requiereMfa ? 'Verificar Identidad' : 'Iniciar sesión'}
           </button>
@@ -193,20 +193,20 @@ function App() {
       {/* Panel Derecho - Decorativo */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-[#0B132B] via-[#1C2541] to-[#0B132B] items-center justify-center relative overflow-hidden">
         {/* Glow effects */}
-        <div className="absolute w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] top-1/4 left-1/4"></div>
-        <div className="absolute w-64 h-64 bg-purple-500/20 rounded-full blur-[96px] bottom-1/4 right-1/4"></div>
+        <div className="absolute w-96 h-96 bg-brand-primary/20 rounded-full blur-[128px] top-1/4 left-1/4"></div>
+        <div className="absolute w-64 h-64 bg-brand-accent/20 rounded-full blur-[96px] bottom-1/4 right-1/4"></div>
 
         <div className="text-center z-10">
           {/* Shield icon */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
-              <div className="w-40 h-40 rounded-full border-2 border-blue-500/30 flex items-center justify-center">
-                <div className="w-28 h-28 rounded-full border-2 border-cyan-400/50 flex items-center justify-center bg-gradient-to-br from-blue-500/10 to-cyan-400/10 backdrop-blur-sm">
-                  <Shield className="text-cyan-400" size={48} />
+              <div className="w-40 h-40 rounded-full border-2 border-brand-primary/30 flex items-center justify-center">
+                <div className="w-28 h-28 rounded-full border-2 border-brand-accent/50 flex items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-accent/10 backdrop-blur-sm">
+                  <Shield className="text-brand-accent" size={48} />
                 </div>
               </div>
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-cyan-400 rounded-full opacity-60 animate-pulse"></div>
-              <div className="absolute -bottom-1 -left-3 w-4 h-4 bg-blue-500 rounded-full opacity-40 animate-pulse"></div>
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-brand-accent rounded-full opacity-60 animate-pulse"></div>
+              <div className="absolute -bottom-1 -left-3 w-4 h-4 bg-brand-primary rounded-full opacity-40 animate-pulse"></div>
             </div>
           </div>
 

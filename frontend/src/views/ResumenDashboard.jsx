@@ -46,9 +46,9 @@ export default function ResumenDashboard() {
       };
 
       const [hallazgosRes, remediacionRes, riesgosRes] = await Promise.all([
-        fetch('http://localhost:3000/api/hallazgos', { headers }),
-        fetch('http://localhost:3000/api/remediacion', { headers }),
-        fetch('http://localhost:3000/api/riesgos', { headers })
+        fetch('/api/hallazgos', { headers }),
+        fetch('/api/remediacion', { headers }),
+        fetch('/api/riesgos', { headers })
       ]);
 
       const hallazgos = await hallazgosRes.json();
@@ -157,7 +157,7 @@ export default function ResumenDashboard() {
       case 'CRITICO': return 'text-red-500';
       case 'ALTO': return 'text-orange-500';
       case 'MEDIO': return 'text-yellow-500';
-      case 'BAJO': return 'text-blue-500';
+      case 'BAJO': return 'text-brand-primary';
       default: return 'text-gray-500';
     }
   };
@@ -169,17 +169,17 @@ export default function ResumenDashboard() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center space-x-3 mb-6">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Activity className="w-6 h-6 text-blue-600" />
+        <div className="p-2 bg-brand-accent/30 rounded-lg">
+          <Activity className="w-6 h-6 text-brand-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
           <p className="text-sm text-gray-500">Visión general del estado de seguridad</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades críticas</h3>
             <ShieldAlert className="w-5 h-5 text-red-500" />
@@ -187,24 +187,24 @@ export default function ResumenDashboard() {
           <p className="text-3xl font-bold mt-2">{metrics.criticas}</p>
           <p className="text-xs text-gray-400 mt-1">vs. mes anterior</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades altas</h3>
             <ShieldAlert className="w-5 h-5 text-orange-500" />
           </div>
           <p className="text-3xl font-bold mt-2">{metrics.altas}</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades abiertas</h3>
             <Shield className="w-5 h-5 text-green-500" />
           </div>
           <p className="text-3xl font-bold mt-2">{metrics.abiertas}</p>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <h3 className="text-gray-500 text-sm font-medium">Riesgo global</h3>
-            <ShieldCheck className="w-5 h-5 text-blue-500" />
+            <ShieldCheck className="w-5 h-5 text-brand-primary" />
           </div>
           <p className={`text-3xl font-bold mt-2 ${getRiesgoColor(metrics.riesgoGlobal)}`}>
             {metrics.riesgoGlobal}
@@ -213,7 +213,7 @@ export default function ResumenDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 lg:col-span-2">
           <h3 className="text-lg font-medium mb-4">Tendencia de vulnerabilidades</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -232,7 +232,7 @@ export default function ResumenDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <h3 className="text-lg font-medium mb-4">Cumplimiento de SLA</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -249,7 +249,7 @@ export default function ResumenDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 lg:col-span-3">
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 lg:col-span-3">
           <h3 className="text-lg font-medium mb-4">Estado de vulnerabilidades</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">

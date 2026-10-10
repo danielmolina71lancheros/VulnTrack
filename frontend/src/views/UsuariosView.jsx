@@ -29,8 +29,8 @@ export default function UsuariosView() {
     try {
       const token = localStorage.getItem('vulntrack_token');
       const [resUsers, resRoles] = await Promise.all([
-        fetch('http://localhost:3000/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('http://localhost:3000/api/roles', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/usuarios', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/roles', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       
       if (resUsers.ok) setUsuarios(await resUsers.json());
@@ -49,7 +49,7 @@ export default function UsuariosView() {
     e.preventDefault();
     try {
       const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`http://localhost:3000/api/usuarios/${editingUser.id_usuario}/rol`, {
+      const res = await fetch(`/api/usuarios/${editingUser.id_usuario}/rol`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ export default function UsuariosView() {
     try {
       const token = localStorage.getItem('vulntrack_token');
       // POST /api/usuarios endpoint needed
-      const res = await fetch(`http://localhost:3000/api/usuarios`, { 
+      const res = await fetch(`/api/usuarios`, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export default function UsuariosView() {
     if (!window.confirm('¿Está seguro que desea eliminar este usuario?')) return;
     try {
       const token = localStorage.getItem('vulntrack_token');
-      const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+      const res = await fetch(`/api/usuarios/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -118,8 +118,8 @@ export default function UsuariosView() {
       case 'ANALISTA_SEGURIDAD': return 'bg-blue-100 text-blue-800';
       case 'GESTOR_ACTIVOS': return 'bg-green-100 text-green-800';
       case 'REMEDIADOR': return 'bg-orange-100 text-orange-800';
-      case 'AUDITOR': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'AUDITOR': return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
+      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
     }
   };
 
@@ -127,13 +127,13 @@ export default function UsuariosView() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-3">
-          <Users className="w-8 h-8 text-blue-500" />
-          <h1 className="text-2xl font-bold text-gray-800">Gestión de Usuarios</h1>
+          <Users className="w-8 h-8 text-brand-primary" />
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Gestión de Usuarios</h1>
         </div>
         {getUserRole() === 'ADMINISTRADOR' && (
           <button 
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
+            className="flex items-center space-x-2 bg-brand-primary hover:bg-brand-secondary text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm"
           >
             <Plus className="w-4 h-4" />
             <span>Crear Usuario</span>
@@ -141,7 +141,7 @@ export default function UsuariosView() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
         {loading ? (
           <div className="text-center py-10">Cargando usuarios...</div>
         ) : usuarios.length === 0 ? (
@@ -150,7 +150,7 @@ export default function UsuariosView() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 text-gray-600 text-sm border-b">
+                <tr className="bg-brand-light dark:bg-gray-900 text-gray-600 dark:text-gray-400 text-sm border-b">
                   <th className="px-6 py-4 font-medium">Nombre</th>
                   <th className="px-6 py-4 font-medium">Correo</th>
                   <th className="px-6 py-4 font-medium">Rol</th>
@@ -159,9 +159,9 @@ export default function UsuariosView() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {usuarios.map((user) => (
-                  <tr key={user.id_usuario} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.nombre_completo}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{user.correo}</td>
+                  <tr key={user.id_usuario} className="hover:bg-brand-light dark:hover:bg-gray-900 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{user.nombre_completo}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{user.correo}</td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 text-xs rounded-full font-medium ${getRoleBadgeColor(user.rol)}`}>
                         {user.rol?.replace('_', ' ')}
@@ -176,7 +176,7 @@ export default function UsuariosView() {
                               setNewRole(user.rol);
                               setIsEditModalOpen(true);
                             }}
-                            className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-brand-primary hover:bg-brand-accent/20 rounded-lg transition-colors"
                             title="Editar rol"
                           >
                             <Edit className="w-4 h-4" />
@@ -203,35 +203,35 @@ export default function UsuariosView() {
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Crear Nuevo Usuario</h3>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Crear Nuevo Usuario</h3>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                <input required type="text" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.nombre_completo} onChange={e => setNewUser({...newUser, nombre_completo: e.target.value})} />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre Completo</label>
+                <input required type="text" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-brand-primary outline-none" value={newUser.nombre_completo} onChange={e => setNewUser({...newUser, nombre_completo: e.target.value})} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico</label>
-                <input required type="email" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.correo} onChange={e => setNewUser({...newUser, correo: e.target.value})} />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correo Electrónico</label>
+                <input required type="email" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-brand-primary outline-none" value={newUser.correo} onChange={e => setNewUser({...newUser, correo: e.target.value})} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input required type="password" minLength="6" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+                <input required type="password" minLength="6" className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-brand-primary outline-none" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rol Inicial</label>
-                <select required className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={newUser.rol} onChange={e => setNewUser({...newUser, rol: e.target.value})}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rol Inicial</label>
+                <select required className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-brand-primary outline-none" value={newUser.rol} onChange={e => setNewUser({...newUser, rol: e.target.value})}>
                   {rolesList.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div className="flex justify-end pt-4">
-                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="mr-3 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Crear Usuario</button>
+                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="mr-3 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg">Crear Usuario</button>
               </div>
             </form>
           </div>
@@ -240,24 +240,24 @@ export default function UsuariosView() {
 
       {isEditModalOpen && editingUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Editar Rol</h3>
-              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Editar Rol</h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-300">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="mb-4 text-sm text-gray-600">Usuario: <span className="font-semibold">{editingUser.nombre_completo}</span></div>
+            <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">Usuario: <span className="font-semibold">{editingUser.nombre_completo}</span></div>
             <form onSubmit={handleEditRole} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nuevo Rol</label>
-                <select required className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nuevo Rol</label>
+                <select required className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-brand-primary outline-none" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
                   {rolesList.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div className="flex justify-end pt-4">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="mr-3 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">Guardar Cambios</button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="mr-3 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-4 py-2 bg-brand-primary hover:bg-brand-primary text-white rounded-lg">Guardar Cambios</button>
               </div>
             </form>
           </div>
