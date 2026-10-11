@@ -9,7 +9,15 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
       - backups-data:/var/backups
-      - ./base_datos/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Scripts de inicialización de Postgres. OJO: el entrypoint de la imagen de Postgres SOLO ejecuta
+      # los scripts de /docker-entrypoint-initdb.d/ en la PRIMERA inicialización del volumen de datos
+      # (volumen vacío). Sobre un volumen ya inicializado NO se vuelven a ejecutar; en ese caso las
+      # migraciones deben aplicarse manualmente con psql. Los prefijos numéricos fuerzan el orden de
+      # ejecución alfabético: primero las tablas base (01), luego v2 (02) y por último v3 (03), ya que
+      # v3 depende de columnas/constraints creados en v2.
+      - ./base_datos/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./base_datos/02-migration-v2.sql:/docker-entrypoint-initdb.d/02-migration-v2.sql:ro
+      - ./base_datos/03-migration-v3.sql:/docker-entrypoint-initdb.d/03-migration-v3.sql:ro
     networks:
       - securehub_lan
     restart: unless-stopped
