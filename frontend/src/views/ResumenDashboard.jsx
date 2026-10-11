@@ -7,7 +7,23 @@ const COLORS_SEVERIDAD = {
   CRITICA: '#EF4444',
   ALTA: '#F97316',
   MEDIA: '#EAB308',
-  BAJA: '#3B82F6'
+  // Azul 500: suficiente contraste tanto sobre fondo claro como oscuro.
+  BAJA: '#60A5FA'
+};
+
+/**
+ * Hook que observa la clase `dark` en <html> (la misma que togglea el Dashboard)
+ * y devuelve true cuando el modo oscuro está activo. Permite que los charts de
+ * Recharts, que no heredan estilos de Tailwind, ajusten sus colores por tema.
+ */
+const useIsDark = () => {
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
+  return isDark;
 };
 
 const COLORS_SLA = {
@@ -23,6 +39,18 @@ const COLORS_ESTADO = {
 };
 
 export default function ResumenDashboard() {
+  const isDark = useIsDark();
+  // Colores de los elementos estructurales del chart (no de los datos) según el tema.
+  const chartTheme = isDark
+    ? { grid: '#374151', tick: '#9CA3AF', tooltipBg: '#1F2937', tooltipBorder: '#374151', tooltipText: '#F3F4F6' }
+    : { grid: '#E5E7EB', tick: '#6B7280', tooltipBg: '#FFFFFF', tooltipBorder: '#E5E7EB', tooltipText: '#111827' };
+  const tooltipStyle = {
+    backgroundColor: chartTheme.tooltipBg,
+    border: `1px solid ${chartTheme.tooltipBorder}`,
+    borderRadius: '0.5rem',
+    color: chartTheme.tooltipText,
+  };
+
   const [loading, setLoading] = useState(true);
   const [metrics, setMetrics] = useState({
     criticas: 0,
@@ -176,7 +204,7 @@ export default function ResumenDashboard() {
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades críticas</h3>
             <ShieldAlert className="w-5 h-5 text-red-500" />
           </div>
-          <p className="text-3xl font-bold mt-2">{metrics.criticas}</p>
+          <p className="text-3xl font-bold mt-2 text-gray-900 dark:text-gray-100">{metrics.criticas}</p>
           <p className="text-xs text-gray-400 mt-1">vs. mes anterior</p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
@@ -184,14 +212,14 @@ export default function ResumenDashboard() {
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades altas</h3>
             <ShieldAlert className="w-5 h-5 text-orange-500" />
           </div>
-          <p className="text-3xl font-bold mt-2">{metrics.altas}</p>
+          <p className="text-3xl font-bold mt-2 text-gray-900 dark:text-gray-100">{metrics.altas}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
             <h3 className="text-gray-500 text-sm font-medium">Vulnerabilidades abiertas</h3>
             <Shield className="w-5 h-5 text-green-500" />
           </div>
-          <p className="text-3xl font-bold mt-2">{metrics.abiertas}</p>
+          <p className="text-3xl font-bold mt-2 text-gray-900 dark:text-gray-100">{metrics.abiertas}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -206,15 +234,15 @@ export default function ResumenDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 lg:col-span-2">
-          <h3 className="text-lg font-medium mb-4">Tendencia de vulnerabilidades</h3>
+          <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Tendencia de vulnerabilidades</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip />
-                <Legend />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartTheme.grid} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartTheme.tick, fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: chartTheme.tick, fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
+                <Legend wrapperStyle={{ color: chartTheme.tick }} />
                 <Line type="monotone" dataKey="Criticas" stroke={COLORS_SEVERIDAD.CRITICA} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Altas" stroke={COLORS_SEVERIDAD.ALTA} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Medias" stroke={COLORS_SEVERIDAD.MEDIA} strokeWidth={2} dot={false} />
@@ -225,38 +253,38 @@ export default function ResumenDashboard() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
-          <h3 className="text-lg font-medium mb-4">Cumplimiento de SLA</h3>
+          <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Cumplimiento de SLA</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={slaData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {slaData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS_SLA[entry.name]} />
+                    <Cell key={`cell-${index}`} fill={COLORS_SLA[entry.name]} stroke={chartTheme.tooltipBg} strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
+                <Legend wrapperStyle={{ color: chartTheme.tick }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 lg:col-span-3">
-          <h3 className="text-lg font-medium mb-4">Estado de vulnerabilidades</h3>
+          <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">Estado de vulnerabilidades</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={estadoData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                   {estadoData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={
+                    <Cell key={`cell-${index}`} stroke={chartTheme.tooltipBg} strokeWidth={2} fill={
                       entry.name === 'Abiertas' ? COLORS_ESTADO.ABIERTO :
                       entry.name === 'En proceso' ? COLORS_ESTADO.EN_PROCESO :
                       COLORS_ESTADO.CERRADO
                     } />
                   ))}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip contentStyle={tooltipStyle} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
+                <Legend wrapperStyle={{ color: chartTheme.tick }} />
               </PieChart>
             </ResponsiveContainer>
           </div>

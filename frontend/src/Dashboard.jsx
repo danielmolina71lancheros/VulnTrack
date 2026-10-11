@@ -77,6 +77,10 @@ export default function Dashboard({ onLogout }) {
   const activarMFA = async () => {
     try {
       await apiPost('/api/auth/mfa/habilitar', { token_mfa: tokenMfa });
+      // El MFA quedó habilitado en el backend, pero el JWT en localStorage se emitió
+      // en el login (con mfa_enabled=false). Marcamos la sesión en memoria para que
+      // el guard de cierre de sesión (handleLogoutAttempt) NO vuelva a forzar el MFA.
+      setMfaEnabledSession(true);
       alert("¡MFA Activado exitosamente!");
       setQrMfa('');
       setTokenMfa('');
