@@ -93,3 +93,40 @@ jobs:
 
       - name: Compilar frontend
         run: npm run build
+
+  trivy:
+    name: Escaneo de vulnerabilidades con Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+
+      - name: Escanear dependencias y configuraciones
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+
+  docker-build:
+    name: Validar construccion de imagenes Docker
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: backend
+            ruta: ./backend
+          - nombre: frontend
+            ruta: ./frontend
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+
+      - name: Construir imagen
+        run: docker build --pull -t vulntrack-${{ matrix.nombre }}:ci ${{ matrix.ruta }}
