@@ -15,6 +15,10 @@ const rolesRoutes = require('./routes/rolesRoutes');
 const importacionRoutes = require('./routes/importacionRoutes');
 const notificacionesRoutes = require('./routes/notificacionesRoutes');
 
+// API stateless: la autenticación protegida utiliza JWT en Authorization: Bearer,
+// no cookies de sesión enviadas automáticamente por el navegador.
+// Las peticiones JSON entre orígenes requieren preflight y CORS limita los orígenes.
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage -- CSRF middleware basado en cookies no aplica a este esquema Bearer; reevaluar si se introducen cookies de autenticación.
 const app = express();
 
 // Confianza en el primer proxy (frontend) para que req.ip refleje la IP real del cliente.
