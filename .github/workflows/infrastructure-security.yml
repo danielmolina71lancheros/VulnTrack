@@ -1,0 +1,36 @@
+﻿name: VulnTrack Infrastructure Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker-compose.yml"
+      - "backend/Dockerfile"
+      - "frontend/Dockerfile"
+      - "scanner/Dockerfile"
+      - "deploy/**"
+      - ".github/workflows/infrastructure-security.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkov:
+    name: Escaneo IaC con Checkov
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v6
+
+      - name: Analizar Docker Compose y Dockerfiles
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          config_file: deploy/.checkov.yaml
+          framework: dockerfile,docker_compose
+          soft_fail: false
+          output_format: cli

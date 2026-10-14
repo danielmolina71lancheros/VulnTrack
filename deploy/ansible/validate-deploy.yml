@@ -1,0 +1,46 @@
+﻿---
+- name: Validar despliegue de VulnTrack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    project_root: "{{ playbook_dir }}/../.."
+    compose_file: "{{ project_root }}/docker-compose.yml"
+
+  tasks:
+    - name: Comprobar que existe Docker Compose
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - version
+      changed_when: false
+
+    - name: Comprobar que existe el archivo Docker Compose
+      ansible.builtin.stat:
+        path: "{{ compose_file }}"
+      register: compose_status
+
+    - name: Detener si no existe Docker Compose
+      ansible.builtin.assert:
+        that:
+          - compose_status.stat.exists
+          - compose_status.stat.isreg
+        fail_msg: "No se encuentra docker-compose.yml en la raíz del proyecto."
+
+    - name: Validar la configuración de Docker Compose
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ compose_file }}"
+          - config
+          - --quiet
+        chdir: "{{ project_root }}"
+      changed_when: false
+
+    - name: Confirmar que la configuración es válida
+      ansible.builtin.debug:
+        msg: "Validación completada. No se han recreado ni eliminado contenedores."

@@ -1,0 +1,7 @@
+﻿framework:
+  - dockerfile
+  - docker_compose
+  - yaml
+quiet: false
+compact: true
+soft-fail: false
