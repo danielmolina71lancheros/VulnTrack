@@ -31,6 +31,6 @@ jobs:
         with:
           directory: .
           config_file: deploy/.checkov.yaml
-          framework: dockerfile,docker_compose
+          framework: dockerfile,yaml
           soft_fail: false
           output_format: cli
