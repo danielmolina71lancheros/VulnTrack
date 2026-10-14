@@ -1,3 +1,4 @@
+
 name: VulnTrack DevSecOps
 
 on:
@@ -63,7 +64,6 @@ jobs:
         run: npm ci
 
       - name: Ejecutar pruebas automatizadas
-        working-directory: backend
         run: npm test -- --ci
 
       - name: Auditar dependencias de produccion
@@ -170,7 +170,7 @@ jobs:
               -tAc "SELECT CASE WHEN to_regclass('public.plan_vulnerabilidades') IS NOT NULL AND to_regclass('public.historial_vulnerabilidad') IS NOT NULL AND to_regclass('public.notificaciones') IS NOT NULL THEN 1 ELSE 0 END;" \
               2>/dev/null | grep -q '^1$'; then
               ready=true
-              echo "PostgreSQL y las migraciones están listos."
+              echo "PostgreSQL y las migraciones estan listos."
               break
             fi
             sleep 2
@@ -178,7 +178,7 @@ jobs:
 
           if [ "$ready" != "true" ]; then
             docker logs vulntrack-dast-db
-            echo "::error::PostgreSQL no terminó la inicialización o faltan tablas."
+            echo "::error::PostgreSQL no termino la inicializacion o faltan tablas."
             exit 1
           fi
 
@@ -250,30 +250,41 @@ jobs:
           console.log('OpenAPI valida:', Object.keys(spec.paths).length, 'rutas');
           NODE
 
+      - name: Preparar directorio de informes DAST
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/zap-output"
+          chmod 777 "$GITHUB_WORKSPACE/zap-output"
+
       - name: Analizar API con OWASP ZAP
         shell: bash
         run: |
           set +e
+
           docker run --rm --network host \
-            -v "$GITHUB_WORKSPACE:/zap/wrk/:rw" \
+            -v "$GITHUB_WORKSPACE/zap-output:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-api-scan.py \
             -t http://127.0.0.1:3000/api-docs.json \
-              -f openapi \
+            -f openapi \
             -S \
-            -r zap-dast-report.html \
-            -J zap-dast-report.json
+            -r /zap/wrk/zap-dast-report.html \
+            -J /zap/wrk/zap-dast-report.json
+
           zap_exit=$?
           set -e
 
-          if [ ! -s zap-dast-report.json ]; then
+          if [ ! -s "$GITHUB_WORKSPACE/zap-output/zap-dast-report.json" ]; then
             echo "::error::OWASP ZAP no genero el informe JSON."
             exit 1
           fi
 
           node <<'NODE'
           const fs = require('fs');
-          const report = JSON.parse(fs.readFileSync('zap-dast-report.json', 'utf8'));
+          const report = JSON.parse(
+            fs.readFileSync('zap-output/zap-dast-report.json', 'utf8')
+          );
+
           const sites = report.site || [];
           const alerts = sites.flatMap(site => site.alerts || []);
 
@@ -283,26 +294,32 @@ jobs:
           });
 
           console.log(`Alertas revisadas: ${alerts.length}`);
-          console.log(`Alertas altas o críticas: ${severe.length}`);
+          console.log(`Alertas altas o criticas: ${severe.length}`);
 
           for (const alert of severe) {
             console.error(
-              `ALERTA: ${alert.riskdesc || alert.name || 'Riesgo alto o crítico'}`
+              `ALERTA: ${alert.riskdesc || alert.name || 'Riesgo alto o critico'}`
             );
           }
 
           if (severe.length > 0) {
-            console.error('DAST bloqueado: se encontraron riesgos altos o críticos.');
+            console.error('DAST bloqueado: se encontraron riesgos altos o criticos.');
             process.exit(1);
           }
           NODE
+
+          validation_exit=$?
+
+          if [ "$validation_exit" -ne 0 ]; then
+            exit "$validation_exit"
+          fi
 
           if [ "$zap_exit" -ne 0 ] && [ "$zap_exit" -ne 2 ]; then
             echo "::error::OWASP ZAP fallo por un error de ejecucion."
             exit "$zap_exit"
           fi
 
-          echo "DAST finalizado sin alertas altas o críticas."
+          echo "DAST finalizado sin alertas altas o criticas."
 
       - name: Publicar informe DAST
         if: always()
@@ -310,8 +327,8 @@ jobs:
         with:
           name: vulntrack-zap-dast-report
           path: |
-            zap-dast-report.html
-            zap-dast-report.json
+            zap-output/zap-dast-report.html
+            zap-output/zap-dast-report.json
           if-no-files-found: warn
 
       - name: Limpiar entorno de pruebas
