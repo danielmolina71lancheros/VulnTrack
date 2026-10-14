@@ -63,6 +63,7 @@ jobs:
         run: npm ci
 
       - name: Ejecutar pruebas automatizadas
+        working-directory: backend
         run: npm test -- --ci
 
       - name: Auditar dependencias de produccion
