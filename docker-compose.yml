@@ -102,7 +102,7 @@ services:
     networks:
       - securehub_lan
     ports:
-      - "80:80"
+      - "80:8080"
     restart: unless-stopped
 
 networks:
