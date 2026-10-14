@@ -31,22 +31,37 @@ const origenesPermitidos = (process.env.CORS_ORIGINS
     : ['http://localhost:5173', 'http://localhost', 'http://localhost:80']);
 
 // Swagger Documentation
-const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./swagger.json');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// 1. Defensas perimetrales
-app.use(helmet()); // Oculta Express y configura cabeceras anti-XSS/Clickjacking
-// CORS restringido: solo se aceptan los origenes de la lista blanca (CORS_ORIGINS).
-// Las peticiones sin Origin (p. ej. curl o health checks) se permiten.
+ // 1. Defensas perimetrales
+app.disable('x-powered-by');
+
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'same-origin' },
+}));
+
+// CORS restringido a los origenes autorizados.
 app.use(cors({
     origin: (origin, cb) => {
-        if (!origin || origenesPermitidos.includes(origin)) return cb(null, true);
+        if (!origin || origenesPermitidos.includes(origin)) {
+            return cb(null, true);
+        }
         return cb(new Error('Origen no permitido por CORS'));
     },
     credentials: true,
 }));
-app.use(express.json({ limit: '10kb' })); // Previene ataques DoS por Payload gigante
+
+app.use(express.json({ limit: '10kb' }));
+
+// Swagger Documentation
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
+
+app.get('/api-docs.json', (req, res) => {
+    res.json(swaggerDocument);
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 
 // 2. Ruta de validación de infraestructura
 app.get('/health', async (req, res) => {
@@ -75,6 +90,11 @@ const startSLAWorker = require('./workers/slaWorker');
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`[INFO] API Core levantada en puerto ${PORT}`);
+  console.log(`[INFO] API Core levantada en puerto ${PORT}`);
+
+  if (process.env.DISABLE_BACKGROUND_WORKERS !== 'true') {
     startSLAWorker();
+  } else {
+    console.log('[INFO] Workers desactivados para el entorno de pruebas.');
+  }
 });
