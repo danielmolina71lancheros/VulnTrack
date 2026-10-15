@@ -1,0 +1,49 @@
+﻿groups:
+  - name: vulntrack-api-alerts
+    interval: 15s
+    rules:
+      - alert: VulnTrackAPIDown
+        expr: up{job="vulntrack-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VulnTrack API no disponible"
+          description: "Prometheus no puede recopilar métricas de la API durante más de un minuto."
+
+      - alert: VulnTrackHighLatency
+        expr: |
+          (
+            sum(rate(vulntrack_http_request_duration_seconds_sum{job="vulntrack-api"}[5m]))
+            /
+            sum(rate(vulntrack_http_request_duration_seconds_count{job="vulntrack-api"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia elevada en VulnTrack API"
+          description: "La latencia media de las solicitudes supera un segundo durante cinco minutos."
+
+      - alert: VulnTrackHighMemory
+        expr: process_resident_memory_bytes{job="vulntrack-api"} > 419430400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumo elevado de memoria en VulnTrack API"
+          description: "El proceso de la API supera los 400 MiB durante cinco minutos."
+
+      - alert: VulnTrackHighHTTP5xx
+        expr: |
+          (
+            sum(rate(vulntrack_http_requests_total{job="vulntrack-api",status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(vulntrack_http_requests_total{job="vulntrack-api"}[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Aumento de errores HTTP 5xx"
+          description: "Más del 5 por ciento de las solicitudes son errores HTTP 5xx durante cinco minutos."

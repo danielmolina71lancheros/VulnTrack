@@ -1,0 +1,56 @@
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: "Prueba de latencia elevada"
+    interval: 1m
+    input_series:
+      - series: 'vulntrack_http_request_duration_seconds_sum{job="vulntrack-api"}'
+        values: '0 120 240 360 480 600 720 840 960 1080 1200 1320'
+      - series: 'vulntrack_http_request_duration_seconds_count{job="vulntrack-api"}'
+        values: '0 60 120 180 240 300 360 420 480 540 600 660'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: VulnTrackHighLatency
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Latencia elevada en VulnTrack API"
+              description: "La latencia media de las solicitudes supera un segundo durante cinco minutos."
+
+  - name: "Prueba de memoria elevada"
+    interval: 1m
+    input_series:
+      - series: 'process_resident_memory_bytes{job="vulntrack-api",instance="securehub-api:3000"}'
+        values: '500000000 500000000 500000000 500000000 500000000 500000000 500000000 500000000 500000000 500000000 500000000 500000000'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: VulnTrackHighMemory
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: vulntrack-api
+              instance: securehub-api:3000
+            exp_annotations:
+              summary: "Consumo elevado de memoria en VulnTrack API"
+              description: "El proceso de la API supera los 400 MiB durante cinco minutos."
+
+  - name: "Prueba de errores HTTP 5xx"
+    interval: 1m
+    input_series:
+      - series: 'vulntrack_http_requests_total{job="vulntrack-api",status_code="200"}'
+        values: '0 90 180 270 360 450 540 630 720 810 900 990'
+      - series: 'vulntrack_http_requests_total{job="vulntrack-api",status_code="500"}'
+        values: '0 10 20 30 40 50 60 70 80 90 100 110'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: VulnTrackHighHTTP5xx
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Aumento de errores HTTP 5xx"
+              description: "Más del 5 por ciento de las solicitudes son errores HTTP 5xx durante cinco minutos."

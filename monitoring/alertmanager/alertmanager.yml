@@ -1,0 +1,27 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: "telegram-vulntrack"
+  group_by:
+    - alertname
+    - job
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: "telegram-vulntrack"
+    telegram_configs:
+      - bot_token_file: /etc/alertmanager/telegram-token.txt
+        chat_id: 8744701988
+        send_resolved: true
+        parse_mode: HTML
+        message: |
+          {{ if eq .Status "firing" }}🔴 <b>ALERTA VULNTRACK</b>{{ else }}🟢 <b>ALERTA RESUELTA</b>{{ end }}
+          {{ range .Alerts }}
+          <b>{{ .Labels.alertname }}</b>
+          Severidad: {{ .Labels.severity }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
