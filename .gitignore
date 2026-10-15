@@ -37,3 +37,6 @@ crash.log
 crash.*.log
 
 monitoring/alertmanager/telegram-token.txt
+
+# Copias de seguridad locales
+*.bak
