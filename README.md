@@ -251,8 +251,6 @@ Debes crear un archivo `.env` en la **raíz del proyecto** (junto a `docker-comp
 ---
 
 ## Instrucciones de Despliegue Local
- 
-# Instalación de VulnTrack en otro computador
 
 ## 1. Descripción
 
