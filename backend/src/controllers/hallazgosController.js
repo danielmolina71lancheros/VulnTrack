@@ -5,7 +5,7 @@ const { crearVulnerabilidad, cambiarEstadoVulnerabilidad, ErrorNegocio } = requi
 
 const manejarError = (res, error, contexto) => {
     if (error instanceof ErrorNegocio) return res.status(error.codigo).json({ error: error.message });
-    console.error(`[ERROR ${contexto}]:`, error.message);
+    console.error('[ERROR CONTROLADOR]', JSON.stringify({ contexto, mensaje: error.message }));
     return res.status(500).json({ error: `Error interno (${contexto}).` });
 };
 

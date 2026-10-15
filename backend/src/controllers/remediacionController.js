@@ -10,6 +10,17 @@ const ESTADOS_PLAN = ['PENDIENTE', 'EN_EJECUCION', 'COMPLETADO', 'VENCIDO', 'CAN
 const ESTADO_VULNERABILIDAD_POR_PLAN = new Map([['EN_EJECUCION', 'EN_REMEDIACION'], ['COMPLETADO', 'CORREGIDA']]);
 const PRIORIDADES = ['BAJA', 'MEDIA', 'ALTA', 'CRITICA'];
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EXTENSIONES_EVIDENCIA = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.doc', '.docx', '.xls', '.xlsx']);
+const ARCHIVO_EVIDENCIA_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.(?:pdf|png|jpg|jpeg|txt|csv|doc|docx|xls|xlsx|bin))?$/i;
+
+const resolverRutaConfinada = (base, ...segmentos) => {
+    const raiz = path.resolve(base);
+    const destino = path.resolve(raiz, ...segmentos.map(segmento => path.basename(String(segmento))));
+    const relativo = path.relative(raiz, destino);
+    if (!relativo || relativo === '..' || relativo.startsWith(`..${path.sep}`) || path.isAbsolute(relativo)) return null;
+    return destino;
+};
 
 const SELECT_PLAN = `
     SELECT p.*, u.nombre_completo AS responsable, a.codigo_activo, a.nombre AS activo_nombre,
@@ -194,18 +205,23 @@ const agregarEvidencia = async (req, res) => {
 
         let ruta = null, nombreArchivo = null;
         if (req.file) {
-            // Carpeta por tenant y nombre aleatorio: evita colisiones y path traversal
-            const dir = path.join(UPLOAD_DIR, id_empresa);
-            // La ruta se deriva de la carpeta fija y del UUID de empresa validado por JWT.
+            if (typeof id_empresa !== 'string' || !UUID_RE.test(id_empresa)) {
+                return res.status(400).json({ error: 'Empresa no válida.' });
+            }
+            // El ID de empresa y el nombre de archivo se reducen a segmentos canónicos.
+            const tenantId = path.basename(id_empresa);
+            const dir = resolverRutaConfinada(UPLOAD_DIR, tenantId);
+            if (!dir) return res.status(400).json({ error: 'Ruta de almacenamiento no válida.' });
             // eslint-disable-next-line security/detect-non-literal-fs-filename -- dir permanece dentro de UPLOAD_DIR.
             fs.mkdirSync(dir, { recursive: true });
-            const ext = path.extname(req.file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '');
-            const archivo = `${crypto.randomUUID()}${ext}`;
-            archivoGuardado = path.join(dir, archivo);
-            // El nombre se genera con UUID y la extensión se filtra antes de escribir.
+            const extensionSolicitada = path.extname(req.file.originalname).toLowerCase();
+            const ext = EXTENSIONES_EVIDENCIA.has(extensionSolicitada) ? extensionSolicitada : '.bin';
+            const archivo = path.basename(`${crypto.randomUUID()}${ext}`);
+            archivoGuardado = resolverRutaConfinada(dir, archivo);
+            if (!archivoGuardado) return res.status(400).json({ error: 'Nombre de archivo no válido.' });
             // eslint-disable-next-line security/detect-non-literal-fs-filename -- archivoGuardado se construye dentro de dir con nombre aleatorio.
             fs.writeFileSync(archivoGuardado, req.file.buffer, { flag: 'wx' });
-            ruta = path.join(id_empresa, archivo);
+            ruta = path.posix.join(tenantId, archivo);
             nombreArchivo = req.file.originalname.slice(0, 250);
         }
         const r = await queryConRLS(id_empresa,
@@ -230,11 +246,14 @@ const descargarEvidencia = async (req, res) => {
         const r = await queryConRLS(id_empresa,
             'SELECT ruta_archivo, nombre_archivo FROM evidencias WHERE id_evidencia = $1 AND estado = TRUE', [req.params.idEvidencia]);
         if (r.rows.length === 0 || !r.rows[0].ruta_archivo) return res.status(404).json({ error: 'Archivo no encontrado.' });
-        const abs = path.resolve(UPLOAD_DIR, r.rows[0].ruta_archivo);
-        const relativa = path.relative(path.resolve(UPLOAD_DIR), abs);
-        if (relativa.startsWith('..') || path.isAbsolute(relativa)) {
+        const rutaGuardada = r.rows[0].ruta_archivo;
+        if (typeof rutaGuardada !== 'string') return res.status(404).json({ error: 'Archivo no encontrado.' });
+        const segmentos = rutaGuardada.replace(/\\/g, '/').split('/');
+        if (segmentos.length !== 2 || !UUID_RE.test(segmentos[0]) || !ARCHIVO_EVIDENCIA_RE.test(segmentos[1])) {
             return res.status(404).json({ error: 'Archivo no encontrado.' });
         }
+        const abs = resolverRutaConfinada(UPLOAD_DIR, segmentos[0], segmentos[1]);
+        if (!abs) return res.status(404).json({ error: 'Archivo no encontrado.' });
         // La ruta absoluta se valida para impedir salir de UPLOAD_DIR antes de comprobar el archivo.
         // eslint-disable-next-line security/detect-non-literal-fs-filename -- abs está confinada a UPLOAD_DIR por la validación previa.
         if (!fs.existsSync(abs)) return res.status(404).json({ error: 'Archivo no encontrado.' });
