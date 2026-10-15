@@ -35,3 +35,5 @@ backend-audit.json
 *.tfplan
 crash.log
 crash.*.log
+
+monitoring/alertmanager/telegram-token.txt

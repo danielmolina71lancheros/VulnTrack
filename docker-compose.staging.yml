@@ -1,0 +1,64 @@
+services:
+  staging-db:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: securehub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ci_postgres_password
+      DB_APP_PASSWORD: ci_app_password
+    volumes:
+      - ./base_datos/00-create-app-user.sh:/docker-entrypoint-initdb.d/00-create-app-user.sh:ro
+      - ./base_datos/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./base_datos/02-migration-v2.sql:/docker-entrypoint-initdb.d/02-migration-v2.sql:ro
+      - ./base_datos/03-migration-v3.sql:/docker-entrypoint-initdb.d/03-migration-v3.sql:ro
+      - ./base_datos/04-migration-v4.sql:/docker-entrypoint-initdb.d/04-migration-v4.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d securehub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [staging]
+
+  staging-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "ci_redis_password"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ci_redis_password ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [staging]
+
+  staging-api:
+    build: ./backend
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+      DB_HOST: staging-db
+      DB_PORT: 5432
+      DB_NAME: securehub
+      DB_APP_USER: app_user
+      DB_APP_PASSWORD: ci_app_password
+      JWT_SECRET: ci_only_secret_for_security_testing
+      CORS_ORIGINS: http://localhost:5173
+      REDIS_HOST: staging-redis
+      REDIS_PASSWORD: ci_redis_password
+      DISABLE_BACKGROUND_WORKERS: "true"
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      staging-db:
+        condition: service_healthy
+      staging-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [staging]
+
+networks:
+  staging:
+    driver: bridge

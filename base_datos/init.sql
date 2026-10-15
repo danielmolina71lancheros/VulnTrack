@@ -8,6 +8,16 @@ CREATE TABLE empresas (
     estado BOOLEAN DEFAULT TRUE -- SOFT DELETE
 );
 
+CREATE TABLE roles_empresa (
+    id_rol UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_empresa UUID NOT NULL REFERENCES empresas(id_empresa),
+    nombre VARCHAR(50) NOT NULL,
+    descripcion VARCHAR(255),
+    permisos JSONB NOT NULL DEFAULT '[]'::jsonb,
+    estado BOOLEAN NOT NULL DEFAULT TRUE,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- [2] Tabla de usuarios (Roles estrictos)
 CREATE TABLE usuarios (
     id_usuario UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,6 +121,7 @@ CREATE TABLE eventos_auditoria (
 -- ==========================================
 
 ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE roles_empresa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hallazgos_vuln ENABLE ROW LEVEL SECURITY;
@@ -121,12 +132,12 @@ ALTER TABLE evidencias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE eventos_auditoria ENABLE ROW LEVEL SECURITY;
 
 -- Crear un usuario de base de datos restringido para que el RLS aplique
-CREATE USER app_user WITH PASSWORD 'VulnTrackApp!123';
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app_user;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO app_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
 -- Políticas universales de aislamiento por inquilino con BYPASS para Auth
 CREATE POLICY aislar_empresas ON empresas USING (current_setting('app.current_tenant', true) = 'BYPASS' OR id_empresa::text = current_setting('app.current_tenant', true));
+CREATE POLICY aislar_roles_empresa ON roles_empresa USING (current_setting('app.current_tenant', true) = 'BYPASS' OR id_empresa::text = current_setting('app.current_tenant', true));
 CREATE POLICY aislar_usuarios ON usuarios USING (current_setting('app.current_tenant', true) = 'BYPASS' OR id_empresa::text = current_setting('app.current_tenant', true));
 CREATE POLICY aislar_activos ON activos USING (current_setting('app.current_tenant', true) = 'BYPASS' OR id_empresa::text = current_setting('app.current_tenant', true));
 CREATE POLICY aislar_hallazgos ON hallazgos_vuln USING (current_setting('app.current_tenant', true) = 'BYPASS' OR id_empresa::text = current_setting('app.current_tenant', true));

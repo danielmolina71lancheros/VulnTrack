@@ -85,30 +85,33 @@ export default function ResumenDashboard() {
 
       if (Array.isArray(hallazgos)) {
         hallazgos.forEach(h => {
-          if (h.estado_hallazgo === 'ABIERTO' || h.estado_hallazgo === 'EN_PROCESO') {
+          const estado = h.estado_hallazgo;
+          if (['DETECTADA', 'EN_ANALISIS', 'PLANIFICADA'].includes(estado)) {
+            estadoCounts.ABIERTO++;
             abiertas++;
+          } else if (estado === 'EN_REMEDIACION') {
+            estadoCounts.EN_PROCESO++;
+            abiertas++;
+          } else {
+            estadoCounts.CERRADO++;
           }
           if (h.severidad === 'CRITICA') criticas++;
           if (h.severidad === 'ALTA') altas++;
           if (h.severidad === 'MEDIA') medias++;
           if (h.severidad === 'BAJA') bajas++;
-
-          if (h.estado_hallazgo === 'ABIERTO') estadoCounts.ABIERTO++;
-          if (h.estado_hallazgo === 'EN_PROCESO') estadoCounts.EN_PROCESO++;
-          if (h.estado_hallazgo === 'CERRADO' || h.estado_hallazgo === 'MITIGADO') estadoCounts.CERRADO++;
         });
       }
 
       // Riesgo global real basado en la tabla de riesgos
       let riesgoGlobal = 'BAJO';
       if (Array.isArray(riesgosArr) && riesgosArr.length > 0) {
-        const riesgoNiveles = { 'CRITICO': 4, 'ALTO': 3, 'MEDIO': 2, 'BAJO': 1 };
+        const riesgoNiveles = new Map([['CRITICO', 4], ['ALTO', 3], ['MEDIO', 2], ['BAJO', 1]]);
         let maxRiesgo = 0;
         riesgosArr.forEach(r => {
-          const nivel = riesgoNiveles[r.riesgo_global] || 0;
+          const nivel = riesgoNiveles.get(r.clasificacion) || 0;
           if (nivel > maxRiesgo) maxRiesgo = nivel;
         });
-        riesgoGlobal = Object.keys(riesgoNiveles).find(k => riesgoNiveles[k] === maxRiesgo) || 'BAJO';
+        riesgoGlobal = [...riesgoNiveles].find(([, value]) => value === maxRiesgo)?.[0] || 'BAJO';
       } else if (criticas > 0) {
         riesgoGlobal = 'CRITICO';
       } else if (altas > 0) {
@@ -121,21 +124,20 @@ export default function ResumenDashboard() {
 
       // Tendencia real: agrupar hallazgos por mes de descubrimiento
       const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      const tendenciaPorMes = {};
+      const tendenciaPorMes = new Map();
       if (Array.isArray(hallazgos)) {
         hallazgos.forEach(h => {
           const fecha = new Date(h.fecha_descubrimiento);
           const clave = `${fecha.getFullYear()}-${fecha.getMonth()}`;
-          if (!tendenciaPorMes[clave]) {
-            tendenciaPorMes[clave] = { name: meses[fecha.getMonth()], Criticas: 0, Altas: 0, Medias: 0, Bajas: 0 };
-          }
-          if (h.severidad === 'CRITICA') tendenciaPorMes[clave].Criticas++;
-          if (h.severidad === 'ALTA') tendenciaPorMes[clave].Altas++;
-          if (h.severidad === 'MEDIA') tendenciaPorMes[clave].Medias++;
-          if (h.severidad === 'BAJA') tendenciaPorMes[clave].Bajas++;
+          const tendencia = tendenciaPorMes.get(clave) || { name: meses[fecha.getMonth()], Criticas: 0, Altas: 0, Medias: 0, Bajas: 0 };
+          if (h.severidad === 'CRITICA') tendencia.Criticas++;
+          if (h.severidad === 'ALTA') tendencia.Altas++;
+          if (h.severidad === 'MEDIA') tendencia.Medias++;
+          if (h.severidad === 'BAJA') tendencia.Bajas++;
+          tendenciaPorMes.set(clave, tendencia);
         });
       }
-      const tendenciaArr = Object.values(tendenciaPorMes);
+      const tendenciaArr = [...tendenciaPorMes.values()];
       setTrendData(tendenciaArr.length > 0 ? tendenciaArr : [{ name: meses[new Date().getMonth()], Criticas: criticas, Altas: altas, Medias: medias, Bajas: bajas }]);
 
       setEstadoData([
@@ -149,6 +151,11 @@ export default function ResumenDashboard() {
       if (Array.isArray(remediaciones) && remediaciones.length > 0) {
         const hoy = new Date();
         remediaciones.forEach(plan => {
+          if (plan.estado_plan === 'CANCELADO') return;
+          if (plan.estado_plan === 'VENCIDO') {
+            vencidasSLA++;
+            return;
+          }
           if (plan.estado_plan === 'COMPLETADO') {
             dentroSLA++;
           } else {

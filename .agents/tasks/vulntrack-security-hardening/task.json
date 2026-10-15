@@ -1,7 +1,7 @@
 {
-  "task_id": "task-vulntrack-security-hardening",
-  "task_description": "Endurecer la seguridad de VulnTrack: rate-limiting de login con Redis (fail-open), CORS restringido por CORS_ORIGINS, healthchecks y arranque ordenado en docker-compose, y alinear el README con la arquitectura real del compose. Trabajo directo en d:\\VulnTrack sin worktree. Las credenciales hardcodeadas de db.js ya se resolvieron previamente.",
+  "task_id": "vulntrack-security-hardening",
+  "task_description": "Cuatro mejoras UX/calidad en el frontend de SecureHub (d:/VulnTrack/frontend), estrictamente secuenciales sobre la rama main sin worktree: (1) arreglar el dark mode roto (variantes dark: huerfanas junto a hover:/focus:), (2) unificar marca a 'SecureHub' y paleta teal brand-*, (3) crear apiClient central y refactorizar todas las vistas eliminando fetch crudo y corrigiendo el bug data.mensaje->data.error del login, (4) autorizacion del frontend por permisos (tienePermiso) alineada con autorizarRoles del backend. Verificacion: npm run build y npm run lint en d:/VulnTrack/frontend.",
   "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
   "blocked_reason": null
 }

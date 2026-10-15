@@ -65,6 +65,6 @@ ALTER TABLE planes_remediacion ADD COLUMN nombre VARCHAR(150), ADD COLUMN descri
 UPDATE planes_remediacion SET nombre = 'Plan ' || substr(id_plan::text, 1, 6) WHERE nombre IS NULL;
 
 -- 4. GRANTS
-GRANT ALL PRIVILEGES ON TABLE plan_vulnerabilidades TO app_user;
+GRANT SELECT, INSERT, UPDATE ON TABLE plan_vulnerabilidades TO app_user;
 
 COMMIT;

@@ -2,39 +2,42 @@ const { queryConRLS } = require('../config/db');
 
 const obtenerMetricas = async (req, res) => {
     const { id_empresa } = req.usuario;
+    const { id_activo } = req.query;
+
+    let activoFilterActivos = '';
+    let activoFilterHallazgos = '';
+    let activoFilterPlanes = '';
+    let paramsActivos = [];
+    let paramsHallazgos = [];
+    let paramsPlanes = [];
+
+    if (id_activo) {
+        activoFilterActivos = ' AND id_activo = $1';
+        activoFilterHallazgos = ' AND id_activo = $1';
+        activoFilterPlanes = ' AND id_activo = $1';
+        paramsActivos.push(id_activo);
+        paramsHallazgos.push(id_activo);
+        paramsPlanes.push(id_activo);
+    }
 
     try {
-        // 1. Conteo de Activos
         const activosRes = await queryConRLS(id_empresa, 
-            'SELECT COUNT(*) as total FROM activos WHERE estado = TRUE'
+            'SELECT COUNT(*) as total FROM activos WHERE estado = TRUE' + activoFilterActivos, paramsActivos
         );
         const totalActivos = parseInt(activosRes.rows[0].total, 10);
 
-        // 2. Conteo de Hallazgos por Severidad
         const severidadRes = await queryConRLS(id_empresa, 
-            `SELECT severidad, COUNT(*) as cantidad 
-             FROM hallazgos_vuln 
-             WHERE estado = TRUE 
-             GROUP BY severidad`
+            'SELECT severidad, COUNT(*) as cantidad FROM hallazgos_vuln WHERE estado = TRUE ' + activoFilterHallazgos + ' GROUP BY severidad', paramsHallazgos
         );
         const hallazgosPorSeveridad = severidadRes.rows;
 
-        // 3. Estado de los Planes de Remediación
         const remediacionRes = await queryConRLS(id_empresa, 
-            `SELECT estado_plan, COUNT(*) as cantidad 
-             FROM planes_remediacion 
-             WHERE estado = TRUE 
-             GROUP BY estado_plan`
+            'SELECT estado_plan, COUNT(*) as cantidad FROM planes_remediacion WHERE estado = TRUE ' + activoFilterPlanes + ' GROUP BY estado_plan', paramsPlanes
         );
         const planesPorEstado = remediacionRes.rows;
 
-        // 4. Últimos 5 Hallazgos Críticos o Altos (Para una tabla rápida en el Dashboard)
         const topHallazgosRes = await queryConRLS(id_empresa, 
-            `SELECT titulo, severidad, estado_hallazgo, fecha_descubrimiento 
-             FROM hallazgos_vuln 
-             WHERE estado = TRUE AND (severidad = 'CRITICAL' OR severidad = 'HIGH')
-             ORDER BY fecha_descubrimiento DESC 
-             LIMIT 5`
+            'SELECT titulo, severidad, estado_hallazgo, fecha_descubrimiento FROM hallazgos_vuln WHERE estado = TRUE AND severidad IN (\'CRITICA\', \'ALTA\') ' + activoFilterHallazgos + ' ORDER BY fecha_descubrimiento DESC LIMIT 5', paramsHallazgos
         );
         const alertasRecientes = topHallazgosRes.rows;
 

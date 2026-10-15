@@ -26,6 +26,9 @@ export default function RemediacionesView() {
     vulnerabilidades: [] // Array de IDs
   });
 
+  const esVulnerabilidadAbierta = (hallazgo) =>
+    !['MITIGADA', 'CORREGIDA', 'ACEPTADA', 'FALSO_POSITIVO', 'CERRADA'].includes(hallazgo.estado_hallazgo);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -397,11 +400,11 @@ export default function RemediacionesView() {
                       </select>
                     </div>
 
-                    {hallazgos.filter(h => h.estado_hallazgo !== 'CERRADA' && h.estado_hallazgo !== 'MITIGADA' && (!filtroActivo || h.codigo_activo === filtroActivo)).length === 0 ? (
+                    {hallazgos.filter(h => esVulnerabilidadAbierta(h) && (!filtroActivo || h.codigo_activo === filtroActivo)).length === 0 ? (
                       <div className="text-center p-6 text-gray-500 text-sm">No hay vulnerabilidades abiertas disponibles para remediar.</div>
                     ) : (
                       <div className="space-y-2">
-                        {hallazgos.filter(h => h.estado_hallazgo !== 'CERRADA' && h.estado_hallazgo !== 'MITIGADA' && (!filtroActivo || h.codigo_activo === filtroActivo)).map(h => (
+                        {hallazgos.filter(h => esVulnerabilidadAbierta(h) && (!filtroActivo || h.codigo_activo === filtroActivo)).map(h => (
                           <div 
                             key={h.id_hallazgo} 
                             onClick={() => handleVulnToggle(h.id_hallazgo)}

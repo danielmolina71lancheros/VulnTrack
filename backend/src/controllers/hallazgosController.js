@@ -1,120 +1,144 @@
-
 const { queryConRLS } = require('../config/db');
 const { registrarAuditoria } = require('../utils/auditoriaHelper');
+const { consultarCve } = require('../services/nvdService');
+const { crearVulnerabilidad, cambiarEstadoVulnerabilidad, ErrorNegocio } = require('../services/vulnerabilidadService');
+
+const manejarError = (res, error, contexto) => {
+    if (error instanceof ErrorNegocio) return res.status(error.codigo).json({ error: error.message });
+    console.error(`[ERROR ${contexto}]:`, error.message);
+    return res.status(500).json({ error: `Error interno (${contexto}).` });
+};
 
 const crearHallazgo = async (req, res) => {
-    let { titulo, descripcion, cve_id, severidad, cvss, id_activo } = req.body;
     const { id_empresa, id_usuario } = req.usuario;
-    
-    if (!cve_id || !cve_id.trim()) {
-        return res.status(400).json({ error: "El CVE ID del NVD es obligatorio." });
-    }
-    
-    // Mapear severidad de ingles (NVD) a español (DB CHECK CONSTRAINT)
-    const severityMap = {
-        'CRITICAL': 'CRITICA',
-        'HIGH': 'ALTA',
-        'MEDIUM': 'MEDIA',
-        'LOW': 'BAJA'
-    };
-    if (severityMap[severidad]) {
-        severidad = severityMap[severidad];
-    }
-    
     try {
-        const result = await queryConRLS(id_empresa, 
-            `INSERT INTO hallazgos_vuln (id_empresa, titulo, descripcion, cve_id, severidad, cvss, estado_hallazgo, id_auditor) 
-             VALUES ($1, $2, $3, $4, $5, $6, 'ABIERTO', $7) RETURNING *`,
-            [id_empresa, titulo, descripcion, cve_id, severidad, cvss, id_usuario]
-        );
-        
-        const hallazgo = result.rows[0];
-
-        // Insertar relacion con activo si se envio id_activo
-        if (id_activo) {
-            await queryConRLS(id_empresa,
-                `INSERT INTO hallazgos_activos (id_hallazgo, id_activo, id_empresa) VALUES ($1, $2, $3)`,
-                [hallazgo.id_hallazgo, id_activo, id_empresa]
-            );
-        }
-
-        await registrarAuditoria(id_empresa, id_usuario, 'Registró vulnerabilidad', 'Vulnerabilidades', { id_hallazgo: hallazgo.id_hallazgo, cve_id: hallazgo.cve_id }, req.ip);
-        res.status(201).json(hallazgo);
-    } catch (error) {
-        console.error("Error crearHallazgo:", error);
-        res.status(500).json({ error: "Error al crear hallazgo." });
-    }
+        const vuln = await crearVulnerabilidad(id_empresa, id_usuario, { ...req.body, source_type: 'MANUAL' }, { ip: req.ip });
+        res.status(201).json(vuln);
+    } catch (error) { manejarError(res, error, 'CREAR VULNERABILIDAD'); }
 };
+
+const SELECT_VULN = `
+    SELECT h.*, a.codigo_activo, a.nombre AS activo_nombre, a.criticidad AS activo_criticidad,
+           r.probabilidad, r.impacto, r.puntaje AS riesgo_puntaje, r.clasificacion AS riesgo_clasificacion,
+           (SELECT COUNT(*) FROM plan_vulnerabilidades pv JOIN planes_remediacion p ON p.id_plan = pv.id_plan
+             WHERE pv.id_hallazgo = h.id_hallazgo AND p.estado = TRUE AND pv.estado = TRUE) AS planes_count,
+           (SELECT string_agg(p.nombre, ', ') FROM plan_vulnerabilidades pv JOIN planes_remediacion p ON p.id_plan = pv.id_plan
+             WHERE pv.id_hallazgo = h.id_hallazgo AND p.estado = TRUE AND pv.estado = TRUE) AS planes_asignados
+    FROM hallazgos_vuln h
+    JOIN activos a ON a.id_activo = h.id_activo
+    LEFT JOIN riesgos r ON r.id_hallazgo = h.id_hallazgo AND r.estado = TRUE`;
 
 const obtenerHallazgos = async (req, res) => {
     const { id_empresa } = req.usuario;
+    const { id_activo } = req.query;
     try {
-        const result = await queryConRLS(id_empresa, 'SELECT * FROM hallazgos_vuln WHERE estado = TRUE ORDER BY fecha_descubrimiento DESC');
+        const params = [];
+        let where = 'WHERE h.estado = TRUE';
+        if (id_activo) { params.push(id_activo); where += ` AND h.id_activo = $${params.length}`; }
+        const result = await queryConRLS(id_empresa, `${SELECT_VULN} ${where} ORDER BY h.fecha_descubrimiento DESC`, params);
         res.status(200).json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: "Error al obtener hallazgos." });
-    }
+    } catch (error) { manejarError(res, error, 'LISTAR VULNERABILIDADES'); }
+};
+
+// Sección 53/54: trazabilidad completa de una vulnerabilidad
+const obtenerHallazgoPorId = async (req, res) => {
+    const { id_empresa } = req.usuario;
+    const { id } = req.params;
+    try {
+        const vuln = await queryConRLS(id_empresa,
+            `${SELECT_VULN.replace('SELECT h.*,', 'SELECT h.*, u.nombre_completo AS registrado_por,')}
+             LEFT JOIN usuarios u ON u.id_usuario = h.id_auditor
+             WHERE h.id_hallazgo = $1 AND h.estado = TRUE`, [id]);
+        if (vuln.rows.length === 0) return res.status(404).json({ error: 'Vulnerabilidad no encontrada.' });
+
+        const planes = await queryConRLS(id_empresa,
+            `SELECT p.id_plan, p.nombre, p.estado_plan, p.prioridad, p.fecha_limite, u.nombre_completo AS responsable
+             FROM plan_vulnerabilidades pv
+             JOIN planes_remediacion p ON p.id_plan = pv.id_plan
+             LEFT JOIN usuarios u ON u.id_usuario = p.id_remediador
+             WHERE pv.id_hallazgo = $1 AND pv.estado = TRUE AND p.estado = TRUE
+             ORDER BY p.fecha_limite`, [id]);
+        const historial = await queryConRLS(id_empresa,
+            `SELECT hv.*, u.nombre_completo AS usuario
+             FROM historial_vulnerabilidad hv LEFT JOIN usuarios u ON u.id_usuario = hv.id_usuario
+             WHERE hv.id_hallazgo = $1 ORDER BY hv.fecha DESC`, [id]);
+
+        res.status(200).json({ ...vuln.rows[0], planes: planes.rows, historial: historial.rows });
+    } catch (error) { manejarError(res, error, 'DETALLE VULNERABILIDAD'); }
+};
+
+const cambiarEstado = async (req, res) => {
+    const { id_empresa, id_usuario } = req.usuario;
+    try {
+        const vuln = await cambiarEstadoVulnerabilidad(id_empresa, id_usuario, req.params.id, req.body.estado, req.body.comentario, req.ip);
+        res.status(200).json(vuln);
+    } catch (error) { manejarError(res, error, 'CAMBIAR ESTADO'); }
+};
+
+const actualizarHallazgo = async (req, res) => {
+    const { id_empresa, id_usuario } = req.usuario;
+    const { observaciones, fuente, fecha_identificacion } = req.body;
+    try {
+        const r = await queryConRLS(id_empresa,
+            `UPDATE hallazgos_vuln SET observaciones = COALESCE($1, observaciones), fuente = COALESCE($2, fuente),
+                    fecha_identificacion = COALESCE($3, fecha_identificacion), fecha_actualizacion = NOW()
+             WHERE id_hallazgo = $4 AND estado = TRUE RETURNING *`,
+            [observaciones, fuente, fecha_identificacion || null, req.params.id]);
+        if (r.rows.length === 0) return res.status(404).json({ error: 'Vulnerabilidad no encontrada.' });
+        await registrarAuditoria(id_empresa, id_usuario, 'VULNERABILITY_UPDATED', 'Vulnerabilidades',
+            { cve_id: r.rows[0].cve_id }, req.ip, { recurso: 'vulnerabilidad', id_recurso: req.params.id });
+        res.status(200).json(r.rows[0]);
+    } catch (error) { manejarError(res, error, 'ACTUALIZAR VULNERABILIDAD'); }
 };
 
 const eliminarHallazgo = async (req, res) => {
-    const { id } = req.params;
-    const { id_empresa } = req.usuario;
+    const { id_empresa, id_usuario } = req.usuario;
     try {
-        await queryConRLS(id_empresa, 'UPDATE hallazgos_vuln SET estado = FALSE WHERE id_hallazgo = $1', [id]);
-        res.status(200).json({ mensaje: "Hallazgo eliminado lógicamente." });
-    } catch (error) {
-        res.status(500).json({ error: "Error al eliminar hallazgo." });
-    }
+        const r = await queryConRLS(id_empresa,
+            `UPDATE hallazgos_vuln SET estado = FALSE, deleted_at = NOW(), deleted_by = $2
+             WHERE id_hallazgo = $1 AND estado = TRUE RETURNING cve_id`, [req.params.id, id_usuario]);
+        if (r.rows.length === 0) return res.status(404).json({ error: 'Vulnerabilidad no encontrada.' });
+        await registrarAuditoria(id_empresa, id_usuario, 'VULNERABILITY_DELETED', 'Vulnerabilidades',
+            { cve_id: r.rows[0].cve_id }, req.ip, { recurso: 'vulnerabilidad', id_recurso: req.params.id });
+        res.status(200).json({ mensaje: 'Vulnerabilidad dada de baja (eliminación lógica).' });
+    } catch (error) { manejarError(res, error, 'ELIMINAR VULNERABILIDAD'); }
 };
 
+// Sección 26: reintento manual de enriquecimiento
+const reenriquecer = async (req, res) => {
+    const { id_empresa, id_usuario } = req.usuario;
+    try {
+        const v = await queryConRLS(id_empresa, 'SELECT cve_id FROM hallazgos_vuln WHERE id_hallazgo = $1 AND estado = TRUE', [req.params.id]);
+        if (v.rows.length === 0) return res.status(404).json({ error: 'Vulnerabilidad no encontrada.' });
+        const nvd = await consultarCve(v.rows[0].cve_id);
+        if (!nvd.ok) {
+            await queryConRLS(id_empresa, 'UPDATE hallazgos_vuln SET intentos_nvd = intentos_nvd + 1 WHERE id_hallazgo = $1', [req.params.id]);
+            return res.status(502).json({ error: `NVD no disponible (${nvd.motivo}). Sigue pendiente de enriquecimiento.` });
+        }
+        const r = await queryConRLS(id_empresa,
+            `UPDATE hallazgos_vuln SET descripcion = $1, cvss = $2, severidad = $3, fecha_publicacion_nvd = $4,
+                    referencias = $5, estado_enriquecimiento = 'COMPLETADO', intentos_nvd = intentos_nvd + 1, fecha_actualizacion = NOW()
+             WHERE id_hallazgo = $6 RETURNING *`,
+            [nvd.descripcion, nvd.cvss, nvd.severidad, nvd.fecha_publicacion, JSON.stringify(nvd.referencias), req.params.id]);
+        await registrarAuditoria(id_empresa, id_usuario, 'VULNERABILITY_UPDATED', 'Vulnerabilidades',
+            { cve_id: v.rows[0].cve_id, enriquecimiento: 'NVD' }, req.ip, { recurso: 'vulnerabilidad', id_recurso: req.params.id });
+        res.status(200).json(r.rows[0]);
+    } catch (error) { manejarError(res, error, 'REENRIQUECER'); }
+};
+
+// Vista previa NVD para el formulario (solo lectura, no registra nada)
 const consultarNVD = async (req, res) => {
-    const { cve } = req.params;
-    
-    // Validar formato básico de CVE (ej. CVE-2021-44228)
-    if (!/^CVE-\d{4}-\d{4,}$/i.test(cve)) {
-        return res.status(400).json({ error: "Formato de CVE inválido. Use el formato CVE-YYYY-NNNNN." });
-    }
-
-    try {
-        // Hacemos la peticion a la API oficial del NIST
-        // Nota: La API 2.0 del NVD permite 5 requests / 30 segs sin API Key.
-        const response = await fetch(`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${cve.toUpperCase()}`);
-        
-        if (!response.ok) {
-            return res.status(response.status).json({ error: "Error al comunicarse con la base de datos del NVD." });
-        }
-
-        const data = await response.json();
-
-        // Validar si la vulnerabilidad existe
-        if (data.totalResults === 0 || !data.vulnerabilities || data.vulnerabilities.length === 0) {
-            return res.status(404).json({ error: "Vulnerabilidad no encontrada en la base de datos del NIST." });
-        }
-
-        // Extraer y limpiar los datos que nos interesan
-        const cveData = data.vulnerabilities[0].cve;
-        
-        // Buscar la descripción en inglés
-        const descripcion = cveData.descriptions?.find(d => d.lang === 'en')?.value || "Sin descripción disponible.";
-        
-        // Extraer métricas CVSS V3.1 o V3.0
-        const metricas = cveData.metrics?.cvssMetricV31?.[0]?.cvssData || cveData.metrics?.cvssMetricV30?.[0]?.cvssData || {};
-        
-        const severidad = metricas.baseSeverity || "DESCONOCIDA";
-        const cvss_score = metricas.baseScore || null;
-
-        res.status(200).json({
-            cve_id: cveData.id,
-            descripcion: descripcion,
-            severidad: severidad,
-            cvss: cvss_score,
-            referencias: cveData.references?.map(r => r.url) || []
-        });
-
-    } catch (error) {
-        console.error("[ERROR NVD]:", error.message);
-        res.status(500).json({ error: "Error interno al consultar la NVD API." });
-    }
+    const nvd = await consultarCve(req.params.cve);
+    if (nvd.ok) return res.status(200).json(nvd);
+    const mensajes = {
+        FORMATO_INVALIDO: [400, 'Formato de CVE inválido. Use CVE-AAAA-NNNN.'],
+        NO_ENCONTRADO: [404, 'El CVE no existe en NVD.'],
+    };
+    const [codigo, msg] = mensajes[nvd.motivo] || [502, `NVD no disponible (${nvd.motivo}). Puede registrar igual; quedará pendiente de enriquecimiento.`];
+    res.status(codigo).json({ error: msg, motivo: nvd.motivo });
 };
 
-module.exports = { crearHallazgo, obtenerHallazgos, eliminarHallazgo, consultarNVD };
+module.exports = {
+    crearHallazgo, obtenerHallazgos, obtenerHallazgoPorId, cambiarEstado,
+    actualizarHallazgo, eliminarHallazgo, reenriquecer, consultarNVD
+};

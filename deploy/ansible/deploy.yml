@@ -1,0 +1,58 @@
+---
+- name: Desplegar VulnTrack con Docker Compose
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    project_root: "{{ playbook_dir }}/../.."
+    compose_file: "{{ compose_file_override | default(project_root ~ '/docker-compose.yml') }}"
+    health_url: "{{ deployment_health_url | default('http://127.0.0.1:3000/health') }}"
+
+  tasks:
+    - name: Validar la configuración antes de desplegar
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ compose_file }}"
+          - config
+          - --quiet
+        chdir: "{{ project_root }}"
+      changed_when: false
+
+    - name: Construir y levantar servicios sin eliminar volúmenes
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - -f
+          - "{{ compose_file }}"
+          - up
+          - -d
+          - --build
+          - --wait
+          - --wait-timeout
+          - "240"
+        chdir: "{{ project_root }}"
+      changed_when: true
+      environment:
+        COMPOSE_PROJECT_NAME: "{{ compose_project_name | default('vulntrack') }}"
+
+    - name: Esperar que la API responda
+      # checkov:skip=CKV2_ANSIBLE_1: El healthcheck es local en el host de Compose; este despliegue simulado no configura terminación TLS externa.
+      ansible.builtin.uri:
+        url: "{{ health_url }}"
+        status_code: 200
+        return_content: true
+      register: api_health
+      retries: 30
+      delay: 5
+      until: api_health.status == 200
+
+    - name: Confirmar respuesta de salud de la API
+      ansible.builtin.assert:
+        that:
+          - api_health.json.status == "OK"
+        fail_msg: "La API no devolvió el estado esperado después del despliegue."

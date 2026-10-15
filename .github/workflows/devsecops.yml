@@ -4,6 +4,7 @@ name: VulnTrack DevSecOps
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -20,6 +21,14 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validar configuracion de hooks pre-commit
+        run: python -m pip install pre-commit && pre-commit validate-config
 
       - name: Escanear secretos con Gitleaks
         uses: gitleaks/gitleaks-action@v3
@@ -66,6 +75,10 @@ jobs:
       - name: Ejecutar pruebas automatizadas
         run: npm test -- --ci
 
+      - name: Analizar backend y frontend con reglas ESLint Security
+        working-directory: .
+        run: backend/node_modules/.bin/eslint backend/src frontend/src --config eslint.config.cjs
+
       - name: Auditar dependencias de produccion
         run: npm audit --omit=dev --audit-level=high
 
@@ -109,15 +122,16 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,misconfig
+          scanners: vuln
           severity: HIGH,CRITICAL
           format: table
           exit-code: "1"
-          ignore-unfixed: true
+          trivy-args: --skip-dirs backend/node_modules --skip-dirs frontend/node_modules --skip-dirs frontend/dist --skip-dirs backend/zap-reports --skip-dirs .agents --skip-dirs .kiro --skip-dirs .qodo
 
   docker-build:
     name: Validar construccion de imagenes Docker
     runs-on: ubuntu-latest
+    needs: [secret-scan, sast, backend, frontend, trivy, dast]
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +140,8 @@ jobs:
             ruta: ./backend
           - nombre: frontend
             ruta: ./frontend
+          - nombre: scanner
+            ruta: ./scanner
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v6
@@ -133,11 +149,39 @@ jobs:
       - name: Construir imagen
         run: docker build --pull -t vulntrack-${{ matrix.nombre }}:ci ${{ matrix.ruta }}
 
-  dast:
-    name: Analisis dinamico DAST con OWASP ZAP
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+      - name: Escanear imagen construida
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: vulntrack-${{ matrix.nombre }}:ci
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: "1"
 
+      - name: Iniciar sesión en Docker Hub
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Publicar imagen versionada y latest
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          image="$DOCKERHUB_USERNAME/vulntrack-${{ matrix.nombre }}"
+          docker tag "vulntrack-${{ matrix.nombre }}:ci" "$image:$version"
+          docker tag "vulntrack-${{ matrix.nombre }}:ci" "$image:latest"
+          docker push "$image:$version"
+          docker push "$image:latest"
+
+  dast:
+    name: Despliegue de staging y DAST con OWASP ZAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v6
@@ -148,129 +192,56 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Iniciar PostgreSQL de pruebas
-        shell: bash
-        run: |
-          docker run -d \
-            --name vulntrack-dast-db \
-            -e POSTGRES_DB=securehub \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=ci_postgres_password \
-            -p 5432:5432 \
-            -v "$GITHUB_WORKSPACE/base_datos/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro" \
-            -v "$GITHUB_WORKSPACE/base_datos/02-migration-v2.sql:/docker-entrypoint-initdb.d/02-migration-v2.sql:ro" \
-            -v "$GITHUB_WORKSPACE/base_datos/03-migration-v3.sql:/docker-entrypoint-initdb.d/03-migration-v3.sql:ro" \
-            postgres:18.6-alpine
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
-          ready=false
+      - name: Instalar Ansible Core
+        run: python -m pip install ansible-core
 
-          for i in {1..60}; do
-            if docker exec vulntrack-dast-db \
-              psql -v ON_ERROR_STOP=1 -U postgres -d securehub \
-              -tAc "SELECT CASE WHEN to_regclass('public.plan_vulnerabilidades') IS NOT NULL AND to_regclass('public.historial_vulnerabilidad') IS NOT NULL AND to_regclass('public.notificaciones') IS NOT NULL THEN 1 ELSE 0 END;" \
-              2>/dev/null | grep -q '^1$'; then
-              ready=true
-              echo "PostgreSQL y las migraciones estan listos."
-              break
-            fi
-            sleep 2
-          done
+      - name: Validar sintaxis del despliegue
+        run: ansible-playbook --syntax-check -i localhost, deploy/ansible/deploy.yml
 
-          if [ "$ready" != "true" ]; then
-            docker logs vulntrack-dast-db
-            echo "::error::PostgreSQL no termino la inicializacion o faltan tablas."
-            exit 1
-          fi
-
-          docker exec vulntrack-dast-db \
-            psql -v ON_ERROR_STOP=1 -U postgres -d securehub \
-            -c "SELECT to_regclass('public.plan_vulnerabilidades'), to_regclass('public.historial_vulnerabilidad'), to_regclass('public.notificaciones');"
-
-      - name: Configurar cuenta de base de datos para CI
-        shell: bash
-        run: |
-          docker exec vulntrack-dast-db \
-            psql -v ON_ERROR_STOP=1 -U postgres -d securehub \
-            -c "ALTER USER app_user WITH PASSWORD 'ci_app_password';"
-
-      - name: Instalar dependencias del backend
-        working-directory: backend
-        run: npm ci
-
-      - name: Ejecutar pruebas automatizadas
-        working-directory: backend
-        run: npm test -- --ci
-
-      - name: Iniciar API VulnTrack
-        working-directory: backend
+      - name: Desplegar entorno aislado de staging con Ansible
         env:
-          NODE_ENV: test
-          PORT: 3000
-          DB_HOST: 127.0.0.1
-          DB_PORT: 5432
-          DB_NAME: securehub
-          DB_APP_USER: app_user
-          DB_APP_PASSWORD: ci_app_password
-          JWT_SECRET: ci_only_secret_for_security_testing
-          CORS_ORIGINS: http://localhost:5173
-          DISABLE_BACKGROUND_WORKERS: "true"
+          COMPOSE_PROJECT_NAME: vulntrack-staging-${{ github.run_id }}
+        run: >-
+          ansible-playbook -i localhost, deploy/ansible/deploy.yml
+          -e compose_file_override=${{ github.workspace }}/docker-compose.staging.yml
+          -e compose_project_name=vulntrack-staging-${{ github.run_id }}
+          -e deployment_health_url=http://127.0.0.1:13000/health
+
+      - name: Validar API y OpenAPI en staging
         shell: bash
         run: |
-          npm start > /tmp/vulntrack-api.log 2>&1 &
-          echo $! > /tmp/vulntrack-api.pid
-
-          for i in {1..30}; do
-            if curl --silent --fail \
-              http://127.0.0.1:3000/health; then
-              echo
-              exit 0
-            fi
-            sleep 2
-          done
-
-          cat /tmp/vulntrack-api.log
-          exit 1
-
-      - name: Validar especificacion OpenAPI
-        shell: bash
-        run: |
-          curl --fail --silent --show-error \
-            http://127.0.0.1:3000/api-docs.json \
-            -o /tmp/openapi.json
-
+          curl --fail --silent --show-error http://127.0.0.1:13000/health
+          curl --fail --silent --show-error http://127.0.0.1:13000/api-docs.json -o /tmp/openapi.json
           node <<'NODE'
           const fs = require('fs');
           const spec = JSON.parse(fs.readFileSync('/tmp/openapi.json', 'utf8'));
-
           if (!spec.openapi || !spec.paths || Object.keys(spec.paths).length === 0) {
-            console.error('La especificacion OpenAPI no es valida o no contiene rutas.');
-            process.exit(1);
+            throw new Error('OpenAPI invalida o sin rutas');
           }
-
-          console.log('OpenAPI valida:', Object.keys(spec.paths).length, 'rutas');
+          console.log(`OpenAPI valida: ${Object.keys(spec.paths).length} rutas`);
           NODE
 
-      - name: Preparar directorio de informes DAST
-        shell: bash
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/zap-output"
-          chmod 777 "$GITHUB_WORKSPACE/zap-output"
+      - name: Preparar directorio para informes
+        run: mkdir -p "$GITHUB_WORKSPACE/zap-output" && chmod 777 "$GITHUB_WORKSPACE/zap-output"
 
-      - name: Analizar API con OWASP ZAP
+      - name: Analizar API de staging con OWASP ZAP
         shell: bash
         run: |
           set +e
-
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE/zap-output:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-api-scan.py \
-            -t http://127.0.0.1:3000/api-docs.json \
+            -t http://127.0.0.1:13000/api-docs.json \
             -f openapi \
             -S \
             -r /zap/wrk/zap-dast-report.html \
             -J /zap/wrk/zap-dast-report.json
-
           zap_exit=$?
           set -e
 
@@ -281,45 +252,24 @@ jobs:
 
           node <<'NODE'
           const fs = require('fs');
-          const report = JSON.parse(
-            fs.readFileSync('zap-output/zap-dast-report.json', 'utf8')
-          );
-
-          const sites = report.site || [];
-          const alerts = sites.flatMap(site => site.alerts || []);
-
-          const severe = alerts.filter(alert => {
-            const risk = Number(alert.riskcode);
-            return Number.isFinite(risk) && risk >= 3;
-          });
-
+          const report = JSON.parse(fs.readFileSync('zap-output/zap-dast-report.json', 'utf8'));
+          const alerts = (report.site || []).flatMap(site => site.alerts || []);
+          const severe = alerts.filter(alert => Number(alert.riskcode) >= 3);
           console.log(`Alertas revisadas: ${alerts.length}`);
           console.log(`Alertas altas o criticas: ${severe.length}`);
-
           for (const alert of severe) {
-            console.error(
-              `ALERTA: ${alert.riskdesc || alert.name || 'Riesgo alto o critico'}`
-            );
+            console.error(`ALERTA: ${alert.riskdesc || alert.name || 'Riesgo alto o critico'}`);
           }
-
-          if (severe.length > 0) {
-            console.error('DAST bloqueado: se encontraron riesgos altos o criticos.');
-            process.exit(1);
-          }
+          if (severe.length > 0) process.exit(1);
           NODE
 
           validation_exit=$?
-
-          if [ "$validation_exit" -ne 0 ]; then
-            exit "$validation_exit"
-          fi
-
+          if [ "$validation_exit" -ne 0 ]; then exit "$validation_exit"; fi
           if [ "$zap_exit" -ne 0 ] && [ "$zap_exit" -ne 2 ]; then
             echo "::error::OWASP ZAP fallo por un error de ejecucion."
             exit "$zap_exit"
           fi
-
-          echo "DAST finalizado sin alertas altas o criticas."
+          echo "DAST de staging finalizado sin alertas altas o criticas."
 
       - name: Publicar informe DAST
         if: always()
@@ -331,6 +281,8 @@ jobs:
             zap-output/zap-dast-report.json
           if-no-files-found: warn
 
-      - name: Limpiar entorno de pruebas
+      - name: Limpiar entorno temporal de staging
         if: always()
-        run: docker rm -f vulntrack-dast-db
+        env:
+          COMPOSE_PROJECT_NAME: vulntrack-staging-${{ github.run_id }}
+        run: docker compose -f docker-compose.staging.yml down --volumes --remove-orphans

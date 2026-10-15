@@ -1,6 +1,25 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const promClient = require('@prometheus-io/client');
+
+const metricsRegistry = new promClient.Registry();
+promClient.collectDefaultMetrics({ register: metricsRegistry });
+
+const httpRequestsTotal = new promClient.Counter({
+    name: 'vulntrack_http_requests_total',
+    help: 'Total de peticiones HTTP recibidas',
+    labelNames: ['method', 'route', 'status_code'],
+    registers: [metricsRegistry],
+});
+
+const httpRequestDuration = new promClient.Histogram({
+    name: 'vulntrack_http_request_duration_seconds',
+    help: 'Duracion de las peticiones HTTP en segundos',
+    labelNames: ['method', 'route', 'status_code'],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+    registers: [metricsRegistry],
+});
 
 // importacion de rutas auth y negocio
 const authRoutes = require('./routes/authRoutes');
@@ -15,10 +34,10 @@ const rolesRoutes = require('./routes/rolesRoutes');
 const importacionRoutes = require('./routes/importacionRoutes');
 const notificacionesRoutes = require('./routes/notificacionesRoutes');
 
-// API stateless: la autenticación protegida utiliza JWT en Authorization: Bearer,
-// no cookies de sesión enviadas automáticamente por el navegador.
-// Las peticiones JSON entre orígenes requieren preflight y CORS limita los orígenes.
-// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage -- CSRF middleware basado en cookies no aplica a este esquema Bearer; reevaluar si se introducen cookies de autenticación.
+// API stateless: la autenticaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n protegida utiliza JWT en Authorization: Bearer,
+// no cookies de sesiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n enviadas automÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ticamente por el navegador.
+// Las peticiones JSON entre orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­genes requieren preflight y CORS limita los orÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­genes.
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage -- CSRF middleware basado en cookies no aplica a este esquema Bearer; reevaluar si se introducen cookies de autenticaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n.
 const app = express();
 
 // Confianza en el primer proxy (frontend) para que req.ip refleje la IP real del cliente.
@@ -63,9 +82,44 @@ app.get('/api-docs.json', (req, res) => {
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 
-// 2. Ruta de validación de infraestructura
+// 2. Ruta de validaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n de infraestructura
+app.use((req, res, next) => {
+    if (req.path === '/metrics') return next();
+
+    const start = process.hrtime.bigint();
+    const route = req.path.startsWith('/api/')
+        ? req.path.split('/').slice(0, 3).join('/')
+        : req.path;
+
+    res.once('finish', () => {
+        const labels = {
+            method: req.method,
+            route,
+            status_code: String(res.statusCode),
+        };
+
+        httpRequestsTotal.inc(labels);
+        httpRequestDuration.observe(
+            labels,
+            Number(process.hrtime.bigint() - start) / 1e9
+        );
+    });
+
+    next();
+});
+
 app.get('/health', async (req, res) => {
     res.json({ status: 'OK', servicio: 'SecureHub API', version: '1.0.0' });
+});
+
+// MÃƒÆ’Ã‚Â©tricas de observabilidad. No registrar URLs ni parÃƒÆ’Ã‚Â¡metros sensibles.
+app.get('/metrics', async (req, res, next) => {
+    try {
+        res.set('Content-Type', metricsRegistry.contentType);
+        res.end(await metricsRegistry.metrics());
+    } catch (error) {
+        next(error);
+    }
 });
 
 // rutas de negocio
@@ -83,7 +137,7 @@ app.use('/api/notificaciones', notificacionesRoutes);
 
 // Manejador de rutas no encontradas
 app.use((req, res) => {
-    res.status(404).json({ error: "Endpoint no encontrado o método no permitido." });
+    res.status(404).json({ error: "Endpoint no encontrado o mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©todo no permitido." });
 });
 
 const startSLAWorker = require('./workers/slaWorker');

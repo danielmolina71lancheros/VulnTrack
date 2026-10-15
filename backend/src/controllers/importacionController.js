@@ -16,7 +16,7 @@ const REQ_VULNS = ['codigo_activo', 'cve'];
 const TIPOS_ACTIVO = ['Laptop', 'Desktop', 'Servidor', 'Máquina virtual', 'Base de datos', 'API', 'Aplicación',
     'Servicio', 'Firewall', 'Switch', 'Router', 'Otro'];
 const ESTADOS_ACTIVO = ['Activo', 'Inactivo', 'En mantenimiento', 'Retirado', 'Baja'];
-const CRITICIDADES = { BAJA: 'BAJA', MEDIA: 'MEDIA', ALTA: 'ALTA', CRITICA: 'CRITICA' };
+const CRITICIDADES = new Map([['BAJA', 'BAJA'], ['MEDIA', 'MEDIA'], ['ALTA', 'ALTA'], ['CRITICA', 'CRITICA']]);
 
 const MAX_FILAS = 5000;
 const NVD_MAX_CONSULTAS = 25;      // NVD limita ~5 req/30s sin API key; el resto lo completa el worker
@@ -48,17 +48,27 @@ const fechaValida = (s) => {
 };
 
 const leerHoja = (hoja, columnasEsperadas) => {
-    const encabezados = [];
+    const encabezados = new Map();
+    const columnasPermitidas = new Set(columnasEsperadas);
     hoja.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => {
-        encabezados[col] = textoCelda(cell.value).toLowerCase().replace(/\s+/g, '_');
+        encabezados.set(col, textoCelda(cell.value).toLowerCase().replace(/\s+/g, '_'));
     });
-    const faltantes = columnasEsperadas.filter(c => !encabezados.includes(c));
+    const nombresEncabezados = new Set(encabezados.values());
+    const faltantes = columnasEsperadas.filter(c => !nombresEncabezados.has(c));
     const filas = [];
     hoja.eachRow({ includeEmpty: false }, (row, numero) => {
         if (numero === 1) return;
-        const obj = { _fila: numero };
-        encabezados.forEach((h, col) => { if (h) obj[h] = textoCelda(row.getCell(col).value); });
-        if (columnasEsperadas.some(c => obj[c])) filas.push(obj);   // ignora filas totalmente vacías
+        const obj = Object.assign(Object.create(null), { _fila: numero });
+        encabezados.forEach((h, col) => {
+            if (!h || !columnasPermitidas.has(h)) return;
+            Object.defineProperty(obj, h, {
+                value: textoCelda(row.getCell(col).value),
+                enumerable: true,
+                configurable: true,
+                writable: true,
+            });
+        });
+        if (columnasEsperadas.some(c => Object.getOwnPropertyDescriptor(obj, c)?.value)) filas.push(obj);
     });
     return { faltantes, filas };
 };
@@ -172,7 +182,7 @@ const importar = async (req, res) => {
         for (const f of A.filas) {
             resumen.activos_procesados++;
             const codigo = f.codigo_activo?.toUpperCase();
-            const faltan = REQ_ACTIVOS.filter(c => !f[c]);
+            const faltan = REQ_ACTIVOS.filter(c => !Object.getOwnPropertyDescriptor(f, c)?.value);
             if (faltan.length) { err('Activos', f._fila, `Campo obligatorio vacío: ${faltan.join(', ')}`); continue; }
             if (vistosA.has(codigo)) { err('Activos', f._fila, `codigo_activo ${codigo} repetido dentro del archivo`); continue; }
             vistosA.add(codigo);
@@ -181,12 +191,15 @@ const importar = async (req, res) => {
             if (!tipo) { err('Activos', f._fila, `Tipo no permitido: "${f.tipo}"`); continue; }
             const estado = f.estado ? buscarEnCatalogo(f.estado, ESTADOS_ACTIVO) : null;
             if (f.estado && !estado) { err('Activos', f._fila, `Estado no permitido: "${f.estado}"`); continue; }
-            const crit = f.criticidad ? CRITICIDADES[sinTildes(f.criticidad).toUpperCase()] : null;
+            const crit = f.criticidad ? CRITICIDADES.get(sinTildes(f.criticidad).toUpperCase()) : null;
             if (f.criticidad && !crit) { err('Activos', f._fila, `Criticidad no permitida: "${f.criticidad}"`); continue; }
             if (!fechaValida(f.fecha_adquisicion)) { err('Activos', f._fila, `Fecha inválida (use AAAA-MM-DD): "${f.fecha_adquisicion}"`); continue; }
             if (f.direccion_ip && !/^[0-9a-fA-F:.\/]+$/.test(f.direccion_ip)) { err('Activos', f._fila, `Dirección IP inválida: "${f.direccion_ip}"`); continue; }
 
-            const v = (k) => f[k] ? f[k].slice(0, 250) : null;
+            const v = (k) => {
+                const value = Object.getOwnPropertyDescriptor(f, k)?.value;
+                return value ? value.slice(0, 250) : null;
+            };
 
             try {
                 // Busca el activo por (id_empresa, codigo_activo) SIN filtrar por estado: el constraint
@@ -258,7 +271,7 @@ const importar = async (req, res) => {
             resumen.vulnerabilidades_procesadas++;
             const codigo = f.codigo_activo?.toUpperCase();
             const cve = normalizarCve(f.cve);
-            const faltan = REQ_VULNS.filter(c => !f[c]);
+            const faltan = REQ_VULNS.filter(c => !Object.getOwnPropertyDescriptor(f, c)?.value);
             if (faltan.length) { resumen.con_errores++; err('Vulnerabilidades', f._fila, `Campo obligatorio vacío: ${faltan.join(', ')}`); continue; }
             if (!esCveValido(cve)) { resumen.con_errores++; err('Vulnerabilidades', f._fila, `CVE inválido: "${f.cve}"`); continue; }
             const id_activo = mapaActivos.get(codigo);

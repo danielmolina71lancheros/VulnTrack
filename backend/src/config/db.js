@@ -1,11 +1,13 @@
 const { Pool } = require('pg');
 
+// Credenciales de la cuenta de bajo privilegio para que el RLS aplique.
+// Se leen de variables de entorno (ver .env / docker-compose). Nunca hardcodear secretos.
 const pool = new Pool({
     host: process.env.DB_HOST,
     user: 'app_user',
-    password: 'VulnTrackApp!123',
+    password: process.env.DB_APP_PASSWORD,
     database: process.env.DB_NAME,
-    port: 5432,
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
 });
 
 /**

@@ -28,6 +28,16 @@ const registrar = async (req, res) => {
         );
         const id_empresa = empresaResult.rows[0].id_empresa;
 
+        await client.query(
+            `INSERT INTO roles_empresa (id_empresa, nombre, descripcion, permisos) VALUES
+                ($1, 'ADMINISTRADOR', 'Acceso total al sistema', '["ALL"]'::jsonb),
+                ($1, 'AUDITOR', 'Consulta y registro de vulnerabilidades',
+                    '["VER_ACTIVOS", "VER_VULN", "CREAR_VULN", "VER_RIESGOS"]'::jsonb),
+                ($1, 'REMEDIADOR', 'Gestión de planes de remediación',
+                    '["VER_ACTIVOS", "VER_VULN", "GESTIONAR_REMEDIACION"]'::jsonb)`,
+            [id_empresa]
+        );
+
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 

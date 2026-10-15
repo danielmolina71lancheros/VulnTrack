@@ -10,6 +10,7 @@ router.post('/', autorizarRoles('ADMINISTRADOR', 'AUDITOR'), controller.crearHal
 router.delete('/:id', autorizarRoles('ADMINISTRADOR', 'AUDITOR'), controller.eliminarHallazgo);
 // Todos pueden leer hallazgos y consultar NVD
 router.get('/', controller.obtenerHallazgos);
+router.get('/:id', controller.obtenerHallazgoPorId);
 router.get('/nvd/:cve', controller.consultarNVD);
 
 module.exports = router;

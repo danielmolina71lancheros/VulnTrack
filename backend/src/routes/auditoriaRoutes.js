@@ -5,6 +5,5 @@ const { verificarToken } = require('../middlewares/authMiddleware');
 
 router.use(verificarToken);
 router.get('/', controller.obtenerEventos);
-router.post('/', controller.registrarEvento);
 
 module.exports = router;

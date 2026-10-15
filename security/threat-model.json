@@ -1,0 +1,150 @@
+{
+  "version": "2.0.0",
+  "summary": {
+    "title": "VulnTrack - Modelo STRIDE",
+    "owner": "VulnTrack",
+    "description": "Modelo de amenazas OWASP Threat Dragon con DFD de contexto (nivel 0) y componentes (nivel 1). Alcance: aplicación local contenerizada, datos multiempresa y servicios de soporte."
+  },
+  "detail": {
+    "contributors": [],
+    "diagrams": [
+      {
+        "title": "DFD nivel 0 - Contexto VulnTrack",
+        "thumbnail": "",
+        "diagramType": "STRIDE",
+        "id": 0,
+        "size": { "width": 1100, "height": 600 },
+        "diagramJson": {
+          "cells": [
+            {
+              "type": "tm.Actor", "size": { "width": 150, "height": 70 }, "position": { "x": 80, "y": 240 }, "id": "00000000-0000-4000-8000-000000000001", "z": 1,
+              "attrs": { "text": { "text": "Usuario / Administrador" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 240, "height": 120 }, "position": { "x": 420, "y": 220 }, "id": "00000000-0000-4000-8000-000000000002", "z": 2, "isWebApplication": true, "privilegeLevel": "Roles RBAC; aislamiento por empresa",
+              "hasOpenThreats": false,
+              "threats": [
+                { "title": "Suplantación de cuenta", "type": "Spoofing", "description": "Un atacante puede reutilizar credenciales comprometidas para iniciar sesión.", "mitigation": "Hash de contraseñas, JWT, limitación de intentos y autorización por roles.", "severity": "High", "status": "Mitigated" },
+                { "title": "Acceso entre empresas", "type": "Elevation of privilege", "description": "Una consulta podría acceder a datos de otra empresa si omite el contexto tenant.", "mitigation": "RLS en PostgreSQL y consultas con contexto de empresa; validar cada ruta de negocio.", "severity": "High", "status": "Mitigated" }
+              ],
+              "attrs": { "text": { "text": "VulnTrack\nFrontend + API + Worker" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Store", "size": { "width": 170, "height": 80 }, "position": { "x": 850, "y": 130 }, "id": "00000000-0000-4000-8000-000000000003", "z": 3, "storesCredentials": true, "storesInventory": true,
+              "hasOpenThreats": false,
+              "threats": [
+                { "title": "Lectura o alteración de datos", "type": "Tampering", "description": "Acceso indebido o modificación de vulnerabilidades, evidencias o usuarios.", "mitigation": "PostgreSQL no se publica al host, credenciales por entorno, rol de aplicación restringido y políticas RLS.", "severity": "High", "status": "Mitigated" }
+              ],
+              "attrs": { "text": { "text": "PostgreSQL\nDatos de negocio" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 170, "height": 80 }, "position": { "x": 850, "y": 380 }, "id": "00000000-0000-4000-8000-000000000004", "z": 4, "outOfScope": true, "reasonOutOfScope": "Servicio externo de enriquecimiento CVE",
+              "attrs": { "text": { "text": "NIST NVD API" }, ".element-shape": { "class": "element-shape isOutOfScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 230, "y": 275 }, "id": "00000000-0000-4000-8000-000000000005", "z": 5, "source": { "id": "00000000-0000-4000-8000-000000000001" }, "target": { "id": "00000000-0000-4000-8000-000000000002" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "HTTPS / JWT", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "HTTPS / JWT" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 740, "y": 255 }, "id": "00000000-0000-4000-8000-000000000006", "z": 6, "source": { "id": "00000000-0000-4000-8000-000000000002" }, "target": { "id": "00000000-0000-4000-8000-000000000003" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "SQL / RLS", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "SQL / RLS" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 740, "y": 310 }, "id": "00000000-0000-4000-8000-000000000007", "z": 7, "source": { "id": "00000000-0000-4000-8000-000000000002" }, "target": { "id": "00000000-0000-4000-8000-000000000004" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "HTTPS; CVE ID", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "HTTPS; CVE ID" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            }
+          ]
+        }
+      },
+      {
+        "title": "DFD nivel 1 - Servicios y límites de confianza",
+        "thumbnail": "",
+        "diagramType": "STRIDE",
+        "id": 1,
+        "size": { "width": 1400, "height": 900 },
+        "diagramJson": {
+          "cells": [
+            {
+              "type": "tm.Actor", "size": { "width": 145, "height": 70 }, "position": { "x": 30, "y": 370 }, "id": "10000000-0000-4000-8000-000000000001", "z": 1,
+              "attrs": { "text": { "text": "Usuario" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 150, "height": 90 }, "position": { "x": 230, "y": 360 }, "id": "10000000-0000-4000-8000-000000000002", "z": 2, "isWebApplication": true,
+              "attrs": { "text": { "text": "Frontend\nReact / Nginx" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 170, "height": 100 }, "position": { "x": 470, "y": 350 }, "id": "10000000-0000-4000-8000-000000000003", "z": 3, "isWebApplication": true, "privilegeLevel": "API app_user", "hasOpenThreats": false,
+              "threats": [
+                { "title": "Falsificación de identidad", "type": "Spoofing", "description": "Robo o falsificación de JWT permite operar como otro usuario.", "mitigation": "Secreto JWT fuerte, expiración, validación de firma y rate limit de login.", "severity": "High", "status": "Mitigated" },
+                { "title": "Denegación de servicio", "type": "Denial of service", "description": "Solicitudes o cargas abusivas agotan recursos de API.", "mitigation": "Límites JSON y de archivos, rate limit y healthchecks.", "severity": "Medium", "status": "Mitigated" },
+                { "title": "Repudio de cambios", "type": "Repudiation", "description": "Un usuario podría negar cambios realizados sobre activos o vulnerabilidades.", "mitigation": "Registrar las operaciones sensibles en el log de auditoría con usuario, recurso y fecha.", "severity": "Medium", "status": "Mitigated" }
+              ],
+              "attrs": { "text": { "text": "API Express\nJWT / RBAC / RLS" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 170, "height": 100 }, "position": { "x": 730, "y": 150 }, "id": "10000000-0000-4000-8000-000000000004", "z": 4,
+              "attrs": { "text": { "text": "Worker\nNVD / SLA / email" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Store", "size": { "width": 170, "height": 90 }, "position": { "x": 750, "y": 350 }, "id": "10000000-0000-4000-8000-000000000005", "z": 5, "storesCredentials": true, "storesInventory": true,
+              "hasOpenThreats": false,
+              "threats": [
+                { "title": "Exposición de datos de otra empresa", "type": "Information disclosure", "description": "Una consulta sin aislamiento tenant podría revelar activos o hallazgos ajenos.", "mitigation": "RLS y privilegios mínimos para app_user; pruebas de autorización multiempresa.", "severity": "High", "status": "Mitigated" },
+                { "title": "Alteración o borrado de datos", "type": "Tampering", "description": "Una cuenta comprometida podría modificar datos de vulnerabilidades.", "mitigation": "Rol de aplicación de mínimo privilegio, auditoría y copias de seguridad.", "severity": "High", "status": "Mitigated" }
+              ],
+              "attrs": { "text": { "text": "PostgreSQL\nRLS / datos" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Store", "size": { "width": 150, "height": 75 }, "position": { "x": 1000, "y": 350 }, "id": "10000000-0000-4000-8000-000000000006", "z": 6, "isEncrypted": false,
+              "attrs": { "text": { "text": "Redis\nRate limit" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Store", "size": { "width": 160, "height": 75 }, "position": { "x": 1000, "y": 500 }, "id": "10000000-0000-4000-8000-000000000007", "z": 7,
+              "attrs": { "text": { "text": "Nginx / evidencias" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 170, "height": 75 }, "position": { "x": 1000, "y": 150 }, "id": "10000000-0000-4000-8000-000000000008", "z": 8, "outOfScope": true, "reasonOutOfScope": "Servicio externo de NIST",
+              "attrs": { "text": { "text": "NIST NVD API" }, ".element-shape": { "class": "element-shape isOutOfScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 175, "y": 395 }, "id": "10000000-0000-4000-8000-000000000009", "z": 9, "source": { "id": "10000000-0000-4000-8000-000000000001" }, "target": { "id": "10000000-0000-4000-8000-000000000002" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "HTTPS", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "HTTPS" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 395, "y": 395 }, "id": "10000000-0000-4000-8000-000000000010", "z": 10, "source": { "id": "10000000-0000-4000-8000-000000000002" }, "target": { "id": "10000000-0000-4000-8000-000000000003" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "HTTP interno / API", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "HTTP API" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 650, "y": 390 }, "id": "10000000-0000-4000-8000-000000000011", "z": 11, "source": { "id": "10000000-0000-4000-8000-000000000003" }, "target": { "id": "10000000-0000-4000-8000-000000000005" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "SQL con contexto tenant", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "SQL / RLS" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 650, "y": 430 }, "id": "10000000-0000-4000-8000-000000000012", "z": 12, "source": { "id": "10000000-0000-4000-8000-000000000003" }, "target": { "id": "10000000-0000-4000-8000-000000000006" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "Rate limit", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "Rate limit" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 650, "y": 450 }, "id": "10000000-0000-4000-8000-000000000013", "z": 13, "source": { "id": "10000000-0000-4000-8000-000000000003" }, "target": { "id": "10000000-0000-4000-8000-000000000007" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "Archivos / evidencias", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "Evidencias" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 900, "y": 190 }, "id": "10000000-0000-4000-8000-000000000014", "z": 14, "source": { "id": "10000000-0000-4000-8000-000000000004" }, "target": { "id": "10000000-0000-4000-8000-000000000008" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "HTTPS / CVE", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "HTTPS / CVE" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            },
+            {
+              "type": "tm.Actor", "size": { "width": 150, "height": 70 }, "position": { "x": 1200, "y": 700 }, "id": "10000000-0000-4000-8000-000000000015", "z": 15,
+              "attrs": { "text": { "text": "Operador Docker" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Process", "size": { "width": 180, "height": 80 }, "position": { "x": 920, "y": 690 }, "id": "10000000-0000-4000-8000-000000000016", "z": 16,
+              "attrs": { "text": { "text": "Docker Compose\nred privada" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text isInScope" } }
+            },
+            {
+              "type": "tm.Flow", "size": { "width": 1, "height": 1 }, "position": { "x": 1120, "y": 730 }, "id": "10000000-0000-4000-8000-000000000017", "z": 17, "source": { "id": "10000000-0000-4000-8000-000000000015" }, "target": { "id": "10000000-0000-4000-8000-000000000016" }, "labels": [{ "position": 0.5, "attrs": { "text": { "text": "Configuración y secretos locales", "font-size": "12", "font-weight": "400" } } }],
+              "attrs": { "text": { "text": "Configuración" }, ".element-shape": { "class": "element-shape isInScope" }, ".element-text": { "class": "element-text" } }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

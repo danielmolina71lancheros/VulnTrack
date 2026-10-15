@@ -70,22 +70,26 @@ export default function RiesgosView() {
   };
 
   const getActivosData = () => {
-    const activosRisk = {};
+    const activosRisk = new Map();
     riesgos.forEach(r => {
       const h = hallazgos.find(x => x.id_hallazgo === r.id_hallazgo);
       if (h) {
          const act = h.activo_nombre || h.codigo_activo || 'Desconocido';
-         if (!activosRisk[act]) activosRisk[act] = { name: act, CRITICO: 0, ALTO: 0, MEDIO: 0, BAJO: 0 };
+         const riesgoActivo = activosRisk.get(act) || { name: act, CRITICO: 0, ALTO: 0, MEDIO: 0, BAJO: 0 };
          
          let nivel = 'BAJO';
          if (r.puntaje >= 20) nivel = 'CRITICO';
          else if (r.puntaje >= 12) nivel = 'ALTO';
          else if (r.puntaje >= 5) nivel = 'MEDIO';
          
-         activosRisk[act][nivel] = (activosRisk[act][nivel] || 0) + 1;
+         if (nivel === 'CRITICO') riesgoActivo.CRITICO++;
+         else if (nivel === 'ALTO') riesgoActivo.ALTO++;
+         else if (nivel === 'MEDIO') riesgoActivo.MEDIO++;
+         else riesgoActivo.BAJO++;
+         activosRisk.set(act, riesgoActivo);
       }
     });
-    return Object.values(activosRisk);
+    return [...activosRisk.values()];
   };
 
   const getRiesgosInCell = (impacto, probabilidad) => {
