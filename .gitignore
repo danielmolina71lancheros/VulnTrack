@@ -1,3 +1,37 @@
-node_modules/
+
+# Secretos y configuracion local
 .env
+.env.*
+!.env.example
+
+# Respaldos y datos locales
+respaldo_*.sql
+*.dump
+*.backup
 base_datos/pgdata/
+
+# Archivos temporales de mantenimiento
+backend/src/reset.js
+
+# Salidas de pruebas y herramientas
+coverage/
+reports/
+
+# Dependencias instaladas
+node_modules/
+
+# Respaldos locales de manifiestos
+package.json.backup
+package-lock.json.backup
+
+# Informes locales de auditoria
+audit-backend.json
+backend-audit.json
+
+# Terraform: estado local, proveedores y archivos temporales
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log

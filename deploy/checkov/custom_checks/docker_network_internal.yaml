@@ -1,0 +1,11 @@
+﻿metadata:
+  id: CKV_VULNTRACK_1
+  name: Ensure the Terraform Docker network is internal
+  category: NETWORKING
+definition:
+  cond_type: attribute
+  resource_types:
+    - docker_network
+  attribute: internal
+  operator: equals
+  value: true
