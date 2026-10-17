@@ -252,6 +252,7 @@ Debes crear un archivo `.env` en la **raíz del proyecto** (junto a `docker-comp
 
 ## Instrucciones de Despliegue Local
 
+
 ## 1. Descripción
 
 Esta guía explica cómo descargar, configurar y ejecutar VulnTrack en un computador nuevo con Windows, utilizando Docker Compose y PostgreSQL.
@@ -266,7 +267,7 @@ También incluye el procedimiento para restaurar una copia de seguridad de la ba
 
 **API local:** http://localhost:3000
 
-> Importante: GitHub contiene el código fuente, pero no incluye el archivo `.env` ni la copia de seguridad de PostgreSQL. Estos archivos deben transferirse de forma privada.
+> Importante: GitHub contiene el código fuente y, en la rama indicada, el archivo `securehub-20261015.dump`. El archivo `.env` debe crearse localmente y no se descarga del repositorio.
 
 ---
 
@@ -279,7 +280,7 @@ Instalar los siguientes programas en el computador nuevo:
 - Docker Compose, incluido en Docker Desktop.
 - Node.js y npm, si se necesita ejecutar el frontend directamente desde Windows en lugar de utilizar el contenedor correspondiente.
 - Acceso al repositorio de GitHub.
-- El archivo de respaldo PostgreSQL `securehub-20261015.dump`, transferido de forma privada desde el computador original.
+- El archivo `securehub-20261015.dump`, incluido en la rama del repositorio que se va a clonar.
 
 ### Verificar las instalaciones
 
@@ -432,59 +433,39 @@ Si algún servicio no está funcionando, revisar sus registros antes de continua
 
 ## 7. Restaurar la base de datos existente
 
-Este procedimiento permite recuperar los datos originales, incluido el usuario administrador `grupo4@gmail.com`, siempre que estén presentes en el respaldo transferido.
+El archivo `securehub-20261015.dump` se descarga junto con el repositorio si está incluido en la rama `prueba/pipeline-devsecops`. No es necesario copiarlo desde otro computador.
 
-### 7.1. Transferir el archivo de respaldo
+### 7.1. Confirmar que el archivo está presente
 
-Copiar de forma privada el archivo:
-
-```text
-securehub-20261015.dump
-```
-
-En el computador nuevo, guardarlo en una ubicación fuera del repositorio. Por ejemplo:
-
-```text
-C:\Users\USUARIO\Documents\securehub-20261015.dump
-```
-
-Sustituir `USUARIO` por el usuario real de Windows.
-
-No subir este archivo a GitHub ni incorporarlo al repositorio.
-
-### 7.2. Comprobar que PostgreSQL está funcionando
-
-Desde la raíz del proyecto:
+Desde la raíz del proyecto, ejecutar:
 
 ```powershell
-docker compose ps securehub-db
+Test-Path .\securehub-20261015.dump
+Get-Item .\securehub-20261015.dump | Select-Object Name, Length
 ```
 
-Si el servicio no está iniciado:
+`Test-Path` debe devolver `True`. Si devuelve `False`, confirma que clonaste la rama correcta y que el archivo está publicado en esa rama.
+
+### 7.2. Asegurar que PostgreSQL está iniciado
 
 ```powershell
 docker compose up -d securehub-db
-```
-
-Esperar a que PostgreSQL esté listo y comprobar sus registros:
-
-```powershell
+docker compose ps securehub-db
 docker compose logs --tail=100 securehub-db
 ```
 
+Espera a que PostgreSQL esté listo antes de continuar.
+
 ### 7.3. Copiar el respaldo al contenedor
 
-Ejecutar:
-
 ```powershell
-docker compose cp "$HOME\Documents\securehub-20261015.dump" securehub-db:/tmp/securehub.dump
+docker compose cp .\securehub-20261015.dump securehub-db:/tmp/securehub.dump
+docker compose exec -T securehub-db sh -c "ls -lh /tmp/securehub.dump"
 ```
 
-Si el archivo está en otra ubicación, cambiar la ruta del archivo de origen.
+### 7.4. Restaurar el respaldo
 
-### 7.4. Restaurar la copia
-
-**Advertencia:** el siguiente comando puede eliminar y reemplazar objetos existentes en la base de datos `securehub`. Ejecutarlo únicamente en el computador nuevo, después de confirmar que se desea reemplazar su contenido con el respaldo original.
+**Advertencia:** la restauración puede eliminar y reemplazar objetos existentes de la base de datos `securehub`. Ejecuta este paso únicamente en el computador nuevo y solo si confirmaste que los datos de destino pueden reemplazarse.
 
 ```powershell
 docker compose exec -T securehub-db pg_restore `
@@ -498,23 +479,16 @@ docker compose exec -T securehub-db pg_restore `
   /tmp/securehub.dump
 ```
 
-Si el comando termina con un error, detenerse y revisar el mensaje antes de continuar. No repetir la restauración a ciegas.
+Si aparece un error, detente y revisa el mensaje. No repitas la restauración sin identificar la causa. Los nombres `securehub` y `admin_db` deben coincidir con la configuración real del proyecto.
 
-Si falla por diferencias entre roles, extensiones o permisos, revisar el error específico y adaptar el procedimiento al estado real de la base de datos. No eliminar la base de datos original del computador de origen.
-
-### 7.5. Comprobar que la base de datos responde
+### 7.5. Verificar PostgreSQL y la API
 
 ```powershell
 docker compose exec -T securehub-db pg_isready -U admin_db -d securehub
-```
-
-El resultado esperado indica que PostgreSQL acepta conexiones.
-
-Revisar también los registros de la API:
-
-```powershell
 docker compose logs --tail=100 securehub-api
 ```
+
+PostgreSQL debe indicar que acepta conexiones y la API debe iniciar sin errores de conexión.
 
 ---
 
@@ -648,7 +622,7 @@ Este último comando no elimina los volúmenes de forma predeterminada. **No uti
 
 ## 12. Seguridad y mantenimiento
 
-- No subir `.env`, contraseñas, tokens ni archivos `.dump` a GitHub.
+- No subir `.env`, contraseñas ni tokens a GitHub. Los respaldos de bases de datos pueden contener información sensible; mantenerlos privados siempre que sea posible.
 - Mantener una copia de seguridad privada de la base de datos.
 - Verificar el respaldo antes de utilizarlo para una restauración.
 - Cambiar las credenciales de prueba antes de desplegar el sistema en un entorno real.
@@ -663,8 +637,6 @@ Este último comando no elimina los volúmenes de forma predeterminada. **No uti
 Al completar este procedimiento, VulnTrack debe estar ejecutándose en el segundo computador con sus servicios configurados, el frontend accesible y, si se restauró correctamente la copia de seguridad, los usuarios, las empresas y los demás registros que existían en el computador original.
 
 La restauración de datos y el despliegue de la aplicación son operaciones independientes: clonar el repositorio no recupera automáticamente la base de datos.
-
-
 
 ## Solución de Problemas Comunes
 
